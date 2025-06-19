@@ -7,7 +7,7 @@ import distribution_management as dm
 
 
 def run_belief_propagation(graph, num_iterations):
-
+    print('test')
     '''
     runs the belief propagation algorithm on a given factor graph for a given number of iterations
     '''
@@ -30,42 +30,18 @@ def run_belief_propagation(graph, num_iterations):
         ### --- CHAIN: FORWARD PASS (FP) ---
         # Iterate through the chain to calculate the messages:
         for variable in graph.variables[:-1]:
-
             if not variable.neighbors:      # skip if variable has no connections
                 continue
 
-            factor_function = variable.neighbors[1].function
-            incoming_f2v_message = messages[(variable.neighbors[0], variable)]
+            factor_function = dm.normalise(variable.neighbors[1].function)
+            incoming_f2v_message = dm.normalise(messages[(variable.neighbors[0], variable)])
 
-            # Then find message from factor_node to v2
             outgoing_f2v_message = factor_function.T @ incoming_f2v_message
             messages[(variable.neighbors[1], variable.neighbors[1].neighbors[1])] = dm.normalise(outgoing_f2v_message)
 
-
-        ### --- CHAIN: BACKWARD PASS (BP) ---
-        # iterate through the chain to calculate the messages
-        for variable in reversed(graph.variables[1:]):
-            factor_function = variable.neighbors[0].function
-            # Message from v2 to factor_node
-            # if last variable, this is np.ones(), otherwise use the previous message
-            if len(variable.neighbors) == 1:
-                incoming_f2v_message = dm.normalise(np.ones(discretisation))
-            else:
-                incoming_f2v_message = messages[(variable.neighbors[1], variable)]
-
-            # Now compute message from factor_node to v1
-            outgoing_f2v_message = factor_function.T @ incoming_f2v_message
-            messages[(variable.neighbors[0], variable.neighbors[0].neighbors[0])] = dm.normalise(outgoing_f2v_message)
-
-
         ### --- CHAIN: FINAL BELIEF UPDATE ---
-        # After forward and backward passes, update beliefs for all variables
         for variable in graph.variables:
-            belief = np.ones(discretisation)
-
-            for factor in variable.neighbors:
-                # We need the message from the factor to the variable
-                belief *= messages[(factor, variable)]
+            belief = messages[(variable.neighbors[0], variable)]
             belief = dm.normalise(belief)
             variable.belief = belief
 
@@ -96,7 +72,6 @@ def run_belief_propagation(graph, num_iterations):
 
                 #TODO: if you wanted more complex topology, you could edit the code block below to incorporate n-neighbours
                 for neighbor in factor.neighbors:
-
                     other_variable = None
                     for v_in_factor in factor.neighbors:
                         if v_in_factor != neighbor:

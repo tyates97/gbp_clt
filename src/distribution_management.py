@@ -59,7 +59,9 @@ def create_smoothing_factor_distribution(
 def normalise(distribution_values):
     sum_value = np.sum(distribution_values)
     if sum_value > 0:
-        return distribution_values / sum_value
+        normalised_values = distribution_values / sum_value
+        return np.clip(normalised_values, 1e-10, 1e10)  # Clamp values to avoid extreme ranges
+
     else:
         # Return uniform distribution instead
         return np.ones_like(distribution_values) / len(distribution_values)

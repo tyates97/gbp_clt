@@ -1,5 +1,4 @@
-# TODO: how does changing the number of loops/variables/priors affect the optimal q?
-# does it tend towards a gaussian (q=1) with more loops? More variables?
+
 # External libraries
 import numpy as np
 from sklearn.metrics import mean_squared_error
@@ -38,3 +37,29 @@ def optimise_q_gaussian(target_belief, measurement_range):
                 optimal_sigma = sigma_candidate
 
     return min_mse, optimal_q, optimal_sigma
+
+
+def optimise_gaussian(target_belief, measurement_range):
+    num_sigma_steps = 50
+    sigma_min = 0.1
+    sigma_max = 5.0
+    
+    sigma_search_values = np.linspace(sigma_min, sigma_max, num_sigma_steps)
+    min_mse = float('inf')
+    optimal_sigma = None
+        
+    for sigma_candidate in sigma_search_values:
+        if sigma_candidate <= 0:
+            continue
+
+        y_gauss = dm.create_gaussian_distribution(measurement_range, sigma_candidate)
+        current_mse = mean_squared_error(target_belief, y_gauss)
+
+        if np.isnan(current_mse):
+            continue
+
+        if current_mse < min_mse:
+            min_mse = current_mse
+            optimal_sigma = sigma_candidate
+
+    return min_mse, optimal_sigma
