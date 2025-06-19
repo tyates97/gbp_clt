@@ -8,6 +8,16 @@ import networkx as nx
 import distribution_management as dm
 from optimisation import optimise_gaussian, optimise_q_gaussian
 
+''' Setting the font sizes '''
+plt.rcParams.update({
+    'axes.titlesize': 8,
+    'axes.labelsize': 7,
+    'xtick.labelsize': 6,
+    'ytick.labelsize': 6,
+    'legend.fontsize': 8,
+    'figure.titlesize': 10
+})
+
 ''' helper functions '''
 def get_variables_to_plot(graph, max_subplots):
     k = min(max_subplots-3, len(graph.variables))
@@ -80,8 +90,8 @@ def plot_final_beliefs(fig, gs, variables_to_plot, measurement_range, comparison
 
             if comparison_distribution == 'gaussian':
                 # min_mse, optimal_sigma = optimise_gaussian(variable_to_optimise_for.belief, measurement_range)
-                min_mse, gaussian_sigma = optimise_gaussian(var.belief, measurement_range)
-                y_gauss = dm.create_gaussian_distribution(measurement_range, gaussian_sigma)
+                min_mse, gaussian_sigma, gaussian_mu = optimise_gaussian(var.belief, measurement_range)
+                y_gauss = dm.create_gaussian_distribution(measurement_range, gaussian_sigma, mu=gaussian_mu)
                 ax.plot(measurement_range, y_gauss, color='green', label='Gaussian')
             if comparison_distribution == 'q gaussian':
                 min_mse, q, gaussian_sigma = optimise_q_gaussian(var.belief, measurement_range)
@@ -104,13 +114,13 @@ def plot_factor_graph(fig, gs, graph):
     factor_nodes = [factor.name for factor in graph.factors]
 
     # Draw nodes
-    nx.draw_networkx_nodes(graph.graph, pos, nodelist=var_nodes, node_color='lightblue', node_size=1000, alpha=0.8,
+    nx.draw_networkx_nodes(graph.graph, pos, nodelist=var_nodes, node_color='lightblue', node_size=400, alpha=0.8,
                            label="Variables")
     nx.draw_networkx_nodes(graph.graph, pos, nodelist=factor_nodes, node_color='lightgreen', node_shape='s',
-                           node_size=600, alpha=0.8, label="Factors")
+                           node_size=400, alpha=0.8, label="Factors")
     nx.draw_networkx_edges(graph.graph, pos, width=2.0, alpha=0.5)      # Draw edges
-    nx.draw_networkx_labels(graph.graph, pos, font_size=15)             # Add labels to nodes
-    factor_graph_ax.legend(labelspacing=1.5, borderpad=1.0)             # Add a legend
+    nx.draw_networkx_labels(graph.graph, pos, font_size=10)             # Add labels to nodes
+    factor_graph_ax.legend(labelspacing=2.5, borderpad=1.0)             # Add a legend
     factor_graph_ax.axis('off')                                         # Hide axis for the graph plot
     plt.tight_layout(pad=3.0, h_pad=2.0, rect=[0, 0, 1, 0.97])
 
@@ -123,7 +133,7 @@ def plot_results(graph, max_subplots, measurement_range, comparison_distribution
     y_max = calculate_max_belief(graph)
 
     # Set up the figure and layout
-    fig = plt.figure(figsize=(20, 16))
+    fig = plt.figure(figsize=(15, 12))
     num_rows = min(np.round(np.sqrt(len(variables_to_plot))).astype(int) + 1,4)  # +1 to include space for the factor graph
     num_columns = min(np.ceil(np.sqrt(len(variables_to_plot))).astype(int) + 1, 4)
     gs = fig.add_gridspec(num_rows, num_columns, figure=fig, width_ratios=np.append(np.ones(num_columns - 1), [num_columns])) # make lots of space on right for the factor graph
@@ -136,4 +146,5 @@ def plot_results(graph, max_subplots, measurement_range, comparison_distribution
     # plot_final_beliefs(fig, gs, variables_to_plot, measurement_range, comparison_distribution, gaussian_sigma, q, y_max, num_columns)
     plot_factor_graph(fig, gs, graph)
 
-    plt.show()
+    return fig              # Uncomment for interactive plotting in web browser (streamlit)
+    # plt.show()            # Uncomment for static plotting in script

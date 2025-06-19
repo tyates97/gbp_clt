@@ -60,7 +60,7 @@ class FactorGraph:
 
 
 ''' functions '''
-def build_factor_graph(num_variables, num_priors, num_loops, measurement_range, prior_distribution_type, gauss_sigma):
+def build_factor_graph(num_variables, num_priors, num_loops, identical_smoothing_functions, measurement_range, prior_distribution_type, gauss_sigma):
     # Create a factor graph
     graph = FactorGraph()
     belief_discretisation = len(measurement_range)
@@ -75,11 +75,12 @@ def build_factor_graph(num_variables, num_priors, num_loops, measurement_range, 
         graph.add_factor([graph.variables[i*int((num_variables/num_priors))]], prior_function, factor_type='prior')
         graph.num_priors += 1
 
-
     # Add pairwise factors for each connected variable
     pairwise_function = dm.create_smoothing_factor_distribution(belief_discretisation, prior=graph.factors[0].function)
     for i in range(len(graph.variables)):
         # add factors between adjacent variables
+        if not identical_smoothing_functions:
+            pairwise_function = dm.create_smoothing_factor_distribution(belief_discretisation, prior=dm.create_prior_distribution('random', measurement_range, gauss_sigma))
         if i < len(graph.variables) - 1:
             graph.add_factor([graph.variables[i], graph.variables[i + 1]],
                                   function=pairwise_function

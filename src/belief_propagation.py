@@ -7,7 +7,6 @@ import distribution_management as dm
 
 
 def run_belief_propagation(graph, num_iterations):
-    print('test')
     '''
     runs the belief propagation algorithm on a given factor graph for a given number of iterations
     '''

@@ -61,5 +61,7 @@ def optimise_gaussian(target_belief, measurement_range):
         if current_mse < min_mse:
             min_mse = current_mse
             optimal_sigma = sigma_candidate
+        
+    optimal_mean = np.average(measurement_range, weights=target_belief)
 
-    return min_mse, optimal_sigma
+    return min_mse, optimal_sigma, optimal_mean

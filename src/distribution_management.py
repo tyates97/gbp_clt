@@ -67,8 +67,8 @@ def normalise(distribution_values):
         return np.ones_like(distribution_values) / len(distribution_values)
 
 # creates a gaussian distribution
-def create_gaussian_distribution(x, sigma):
-    mean = np.mean(x)
+def create_gaussian_distribution(x, sigma, mu=0):
+    mean = mu
     coef = 1 / (np.sqrt(2 * np.pi) * sigma)
     exponent = -((x - mean) ** 2) / (2 * sigma ** 2)
     return normalise(coef * np.exp(exponent))
