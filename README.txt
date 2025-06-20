@@ -1,4 +1,3 @@
-
 # The Central Limit Theorem in Belief Propagation
 This code is designed to test the effects of the Central Limit Theorem in factor graphs implementing belief propagation for different graph topologies.
 
