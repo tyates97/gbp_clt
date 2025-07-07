@@ -20,29 +20,81 @@ def run_belief_propagation(graph, num_iterations):
             messages[(factor, variable)] = dm.normalise(np.ones(discretisation))
             messages[(variable, factor)] = dm.normalise(np.ones(discretisation))
 
+    # Helper: send variable-to-factor message
+    def send_var_to_factor(variable, exclude_factor):
+        msg = np.ones(discretisation)
+        for factor in variable.neighbors:
+            if factor != exclude_factor:
+                msg *= messages[(factor, variable)]
+        return dm.normalise(msg)
+
+    # Helper: send factor-to-variable message (pairwise factors)
+    def send_factor_to_var(factor, exclude_variable):
+        idx = factor.neighbors.index(exclude_variable)
+        other_variable = factor.neighbors[1 - idx]
+        incoming = messages[(other_variable, factor)]
+        msg = np.zeros(discretisation)
+        if idx == 0:
+            for i in range(discretisation):
+                msg[i] = np.sum(factor.function[i, :] * incoming)
+        else:
+            for i in range(discretisation):
+                msg[i] = np.sum(factor.function[:, i] * incoming)
+        return dm.normalise(msg)
+
+    # Forward pass: from root to leaves
+    def forward(variable, parent_factor=None, visited=None):
+        if visited is None:
+            visited = set()
+        visited.add(variable)
+        for factor in variable.neighbors:
+            if factor == parent_factor:
+                continue
+            other_variables = [v for v in factor.neighbors if v != variable]
+            if not other_variables:
+                continue
+            other_variable = other_variables[0]  # Assuming pairwise factors for now
+            # Update messages
+            messages[(variable, factor)] = send_var_to_factor(variable, factor)
+            messages[(factor, other_variable)] = send_factor_to_var(factor, other_variable)
+            if other_variable not in visited:
+                forward(other_variable, factor, visited)
+
+    # Backward pass: from leaves to root
+    def backward(variable, parent_factor=None, visited=None):
+        if visited is None:
+            visited = set()
+        visited.add(variable)
+        for factor in variable.neighbors:
+            if factor == parent_factor:
+                continue
+            # Find the other variable connected to this factor
+            print(factor.name)
+            other_variable = [v for v in factor.neighbors if v != variable][0]
+            if other_variable not in visited:
+                backward(other_variable, factor, visited)
+            # Update messages
+            messages[(variable, factor)] = send_var_to_factor(variable, factor)
+            messages[(factor, other_variable)] = send_factor_to_var(factor, other_variable)
+
+
     # Initialise the message from prior to first variable - this should just be the prior
     if graph.factors and graph.variables and graph.factors[0].factor_type == 'prior':
         messages[(graph.factors[0], graph.factors[0].neighbors[0])] = graph.factors[0].function
 
-    ### STEP 0.1 - CHAIN GRAPHS: For chain graphs, run a forward/backward pass algorithm for faster convergence
-    if graph.num_loops == 0 and graph.num_priors == 1:
-        ### --- CHAIN: FORWARD PASS (FP) ---
-        # Iterate through the chain to calculate the messages:
-        for variable in graph.variables[:-1]:
-            if not variable.neighbors:      # skip if variable has no connections
-                continue
+    ### STEP 0.1 - TREE GRAPHS: If the graph is a tree or a chain, run forward and backward passes
+    if graph.is_tree or (graph.num_loops == 0 and graph.num_priors == 1):
+        root = graph.variables[0]
+        forward (root)
+        # backward(root)
 
-            factor_function = dm.normalise(variable.neighbors[1].function)
-            incoming_f2v_message = dm.normalise(messages[(variable.neighbors[0], variable)])
-
-            outgoing_f2v_message = factor_function.T @ incoming_f2v_message
-            messages[(variable.neighbors[1], variable.neighbors[1].neighbors[1])] = dm.normalise(outgoing_f2v_message)
-
-        ### --- CHAIN: FINAL BELIEF UPDATE ---
+        # Update beliefs
         for variable in graph.variables:
-            belief = messages[(variable.neighbors[0], variable)]
-            belief = dm.normalise(belief)
-            variable.belief = belief
+            belief = np.ones(discretisation)
+            for factor in variable.neighbors:
+                belief *= messages[(factor, variable)]
+            variable.belief = dm.normalise(belief)
+        return graph
 
 
     ### STEP 0.2 - LOOPY GRAPHS: For loopy, non-chain graphs, run normal, iterative belief propagation

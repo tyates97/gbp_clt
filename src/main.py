@@ -16,6 +16,7 @@ from optimisation import optimise_q_gaussian, optimise_gaussian
 num_variables = 12
 num_loops = 3
 num_priors = 1
+is_tree = False
 prior_distribution_type = 'random'       # can be 'random', 'random symmetric' 'gaussian', 'top hat', 'horns' or 'skew'
 comparison_distribution = 'gaussian'     # can be 'gaussian' or 'q gaussian'
 num_iterations = 50
@@ -38,10 +39,12 @@ graph = build_factor_graph(
     num_variables,
     num_priors,
     num_loops,
+    is_tree,
     identical_smoothing_functions,
     measurement_range,
     prior_distribution_type,
-    gauss_sigma=2.3 # temporary, in case needed for the definition of a gaussian prior
+    gauss_sigma=2.3, # temporary, in case needed for the definition of a gaussian prior
+    
 )
 
 print('Factor graph built. Running belief propagation...')

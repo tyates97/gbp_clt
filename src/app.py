@@ -12,6 +12,8 @@ st.title("Interactive Factor Graph Belief Propagation")
 num_variables = st.sidebar.slider("Number of Variables", 2, 20, 12)
 num_loops = st.sidebar.slider("Number of Loops", 0, 6, 3)
 num_priors = st.sidebar.slider("Number of Priors", 1, num_variables, 1)
+is_tree = st.sidebar.checkbox("Tree factor graph", value=False)
+branching_factor = st.sidebar.slider("If tree, Branching Factor", 1, 5, 2, step=1)
 prior_distribution_type = st.sidebar.selectbox(
     "Prior Distribution Type",
     ['random', 'random symmetric', 'gaussian', 'top hat', 'horns', 'skew']
@@ -37,10 +39,12 @@ graph = build_factor_graph(
     num_variables,
     num_priors,
     num_loops,
+    is_tree,
     identical_smoothing_functions,
     measurement_range,
     prior_distribution_type,
-    gauss_sigma
+    gauss_sigma,
+    branching_factor
 )
 graph = run_belief_propagation(graph, num_iterations)
 
