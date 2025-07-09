@@ -72,7 +72,7 @@ class FactorGraph:
 
 
 ''' functions '''
-def build_factor_graph(num_variables, num_priors, num_loops, is_tree, identical_smoothing_functions, measurement_range, prior_distribution_type, gauss_sigma, branching_factor=2):
+def build_factor_graph(num_variables, num_priors, num_loops, is_tree, identical_smoothing_functions, measurement_range, prior_distribution_type, gauss_sigma, branching_factor=2, tree_priors='root prior'):
     # Create a factor graph
     graph = FactorGraph()
     graph.is_tree = is_tree
@@ -83,13 +83,8 @@ def build_factor_graph(num_variables, num_priors, num_loops, is_tree, identical_
     for i in range(num_variables):
         graph.add_variable(f'X{i + 1}', belief_discretisation)
 
-    # Add prior factors, evenly spaced around the number of variables
-    for i in range(num_priors):
-        graph.add_factor([graph.variables[i*int((num_variables/num_priors))]], prior_function, factor_type='prior')
-        graph.num_priors += 1
-
     # Add pairwise factors for each connected variable
-    pairwise_function = dm.create_smoothing_factor_distribution(belief_discretisation, prior=graph.factors[0].function)
+    pairwise_function = dm.create_smoothing_factor_distribution(belief_discretisation, prior_function)
     for i in range(len(graph.variables)):
         # add factors between adjacent variables
         if not identical_smoothing_functions:
@@ -132,5 +127,20 @@ def build_factor_graph(num_variables, num_priors, num_loops, is_tree, identical_
             #     graph.add_factor([graph.variables[i], graph.variables[i - 1]],
             #                       function=pairwise_function
             #                       )
-    
+        
+    # Add prior factors
+    # if it's a tree and you want priors on the leaf nodes
+    if (is_tree and tree_priors == 'leaf priors'):
+        for variable in graph.variables:
+            print(f"Variable {variable.name} has {len(variable.neighbors)} neighbors.")
+            if len(variable.neighbors) == 1:
+                random_prior_function = dm.create_prior_distribution('random', measurement_range, gauss_sigma)
+                graph.add_factor([variable], random_prior_function, factor_type='prior')
+    # Otherwise if it's loopy or a tree with a root prior
+    else:
+        # add a random prior to all leaf nodes
+        for i in range(num_priors):
+            graph.add_factor([graph.variables[i*int((num_variables/num_priors))]], prior_function, factor_type='prior')
+            graph.num_priors += 1
+
     return graph

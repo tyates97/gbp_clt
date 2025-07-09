@@ -6,7 +6,7 @@ import numpy as np
 import distribution_management as dm
 
 
-def run_belief_propagation(graph, num_iterations):
+def run_belief_propagation(graph, num_iterations, bp_pass_direction='Forward pass'):
     '''
     runs the belief propagation algorithm on a given factor graph for a given number of iterations
     '''
@@ -65,28 +65,36 @@ def run_belief_propagation(graph, num_iterations):
         if visited is None:
             visited = set()
         visited.add(variable)
+        # For each neighbor factor except the parent
         for factor in variable.neighbors:
             if factor == parent_factor:
                 continue
             # Find the other variable connected to this factor
-            print(factor.name)
-            other_variable = [v for v in factor.neighbors if v != variable][0]
+            other_variables = [v for v in factor.neighbors if v != variable]
+            if not other_variables:
+                continue
+            other_variable = other_variables[0]  # Assuming pairwise factors for now
             if other_variable not in visited:
                 backward(other_variable, factor, visited)
-            # Update messages
-            messages[(variable, factor)] = send_var_to_factor(variable, factor)
-            messages[(factor, other_variable)] = send_factor_to_var(factor, other_variable)
+            # After all children have sent messages, update messages up to parent
+            messages[(other_variable, factor)] = send_var_to_factor(other_variable, factor)
+            messages[(factor, variable)] = send_factor_to_var(factor, variable)
 
 
-    # Initialise the message from prior to first variable - this should just be the prior
-    if graph.factors and graph.variables and graph.factors[0].factor_type == 'prior':
-        messages[(graph.factors[0], graph.factors[0].neighbors[0])] = graph.factors[0].function
+    # Initialise messages from all prior factors
+    for factor in graph.factors:
+        if factor.factor_type == 'prior':
+            # Assuming prior has one neighbor variable
+            messages[(factor, factor.neighbors[0])] = factor.function
 
     ### STEP 0.1 - TREE GRAPHS: If the graph is a tree or a chain, run forward and backward passes
     if graph.is_tree or (graph.num_loops == 0 and graph.num_priors == 1):
         root = graph.variables[0]
-        forward (root)
-        # backward(root)
+        
+        if bp_pass_direction == 'Forward pass':
+            forward (root)
+        if bp_pass_direction == 'Backward pass':
+            backward(root)
 
         # Update beliefs
         for variable in graph.variables:
