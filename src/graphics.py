@@ -82,21 +82,24 @@ def plot_prior_function(fig, gs, graph, measurement_range):
     ax.set_title(f'Prior: {prior_factors[0].name}')
 
 # def plot_final_beliefs(fig, gs, variables_to_plot, measurement_range, comparison_distribution, gaussian_sigma, q, y_max, num_columns):
-def plot_final_beliefs(fig, gs, variables_to_plot, measurement_range, comparison_distribution, y_max, num_columns):
+def plot_final_beliefs(fig, gs, variables_to_plot, measurement_range, comparison_distribution, y_max, num_columns, show_comparison=True):
     for i, var in enumerate(variables_to_plot):
         if var.belief is not None:
             ax = fig.add_subplot(gs[np.floor(i / (num_columns - 1)).astype(int) + 1, i % (num_columns - 1)])
             ax.plot(measurement_range, var.belief)
 
+
             if comparison_distribution == 'gaussian':
                 # min_mse, optimal_sigma = optimise_gaussian(variable_to_optimise_for.belief, measurement_range)
                 min_mse, gaussian_sigma, gaussian_mu = optimise_gaussian(var.belief, measurement_range)
                 y_gauss = dm.create_gaussian_distribution(measurement_range, gaussian_sigma, mu=gaussian_mu)
-                ax.plot(measurement_range, y_gauss, color='green', label='Gaussian')
+                if show_comparison:
+                    ax.plot(measurement_range, y_gauss, color='green', label='Gaussian')
             if comparison_distribution == 'q gaussian':
                 min_mse, q, gaussian_sigma = optimise_q_gaussian(var.belief, measurement_range)
                 y_q_gauss = dm.create_q_gaussian_distribution(measurement_range, q, gaussian_sigma)
-                ax.plot(measurement_range, y_q_gauss, color='green', label='Q-Gaussian')
+                if show_comparison:
+                    ax.plot(measurement_range, y_q_gauss, color='green', label='Q-Gaussian')
 
             ax.set_title(f'{var.name} - MSE: {min_mse:.2e}')
             ax.set_ylim(0, y_max)
@@ -126,7 +129,7 @@ def plot_factor_graph(fig, gs, graph):
 
 
 ''' main plotting function '''
-def plot_results(graph, max_subplots, measurement_range, comparison_distribution):#, gaussian_sigma, q=1):
+def plot_results(graph, max_subplots, measurement_range, comparison_distribution, show_comparison=True):#, gaussian_sigma, q=1):
     # Define which variables/smoothing functions to plot & find max y-value
     variables_to_plot = get_variables_to_plot(graph, max_subplots)
     smoothing_factors_to_plot = get_smoothing_factors_to_plot(graph, variables_to_plot)
@@ -142,8 +145,7 @@ def plot_results(graph, max_subplots, measurement_range, comparison_distribution
     # Plot subplots
     plot_smoothing_functions(fig, gs, smoothing_factors_to_plot, measurement_range)
     plot_prior_function(fig, gs, graph, measurement_range)
-    plot_final_beliefs(fig, gs, variables_to_plot, measurement_range, comparison_distribution, y_max, num_columns)
-    # plot_final_beliefs(fig, gs, variables_to_plot, measurement_range, comparison_distribution, gaussian_sigma, q, y_max, num_columns)
+    plot_final_beliefs(fig, gs, variables_to_plot, measurement_range, comparison_distribution, y_max, num_columns, show_comparison)
     plot_factor_graph(fig, gs, graph)
 
     return fig              # Uncomment for interactive plotting in web browser (streamlit)

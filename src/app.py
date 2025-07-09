@@ -18,6 +18,9 @@ prior_distribution_type = st.sidebar.selectbox(
     "Prior Distribution Type",
     ['random', 'random symmetric', 'gaussian', 'top hat', 'horns', 'skew']
 )
+
+show_comparison = st.sidebar.checkbox("Show comparison distribution", value=True)
+
 comparison_distribution = st.sidebar.selectbox(
     "Comparison Distribution",
     ['gaussian', 'q gaussian']
@@ -54,6 +57,7 @@ fig = plot_results(
     graph,
     max_subplots,
     measurement_range,
-    comparison_distribution
+    comparison_distribution,
+    show_comparison
 )
 st.pyplot(fig)
