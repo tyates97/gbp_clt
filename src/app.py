@@ -19,12 +19,9 @@ prior_distribution_type = st.sidebar.selectbox(
     ['random', 'random symmetric', 'gaussian', 'top hat', 'horns', 'skew']
 )
 
-show_comparison = st.sidebar.checkbox("Show comparison distribution", value=True)
+show_comparison = st.sidebar.checkbox("Show Gaussian best fit", value=True)
+comparison_distribution = 'gaussian'
 
-comparison_distribution = st.sidebar.selectbox(
-    "Comparison Distribution",
-    ['gaussian', 'q gaussian']
-)
 num_iterations = st.sidebar.slider("Number of BP Iterations", 1, 100, 50)
 identical_smoothing_functions = st.sidebar.checkbox("Identical Smoothing Functions", value=False)
 belief_discretisation = st.sidebar.slider("Belief Discretisation", 8, 128, 52, step=4)
