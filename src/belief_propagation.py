@@ -93,8 +93,11 @@ def run_belief_propagation(graph, num_iterations, bp_pass_direction='Forward pas
         
         if bp_pass_direction == 'Forward pass':
             forward (root)
-        if bp_pass_direction == 'Backward pass':
+        elif bp_pass_direction == 'Backward pass':
             backward(root)
+        elif bp_pass_direction == 'Both':
+            backward(root)
+            forward(root)
 
         # Update beliefs
         for variable in graph.variables:

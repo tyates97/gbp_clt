@@ -25,7 +25,7 @@ num_priors = st.sidebar.slider("Number of Priors", 1, num_variables, 1)
 # Tree Graph Topology
 st.sidebar.subheader("Tree Graphs")
 is_tree = st.sidebar.checkbox("Tree factor graph", value=False)
-bp_pass_direction = st.sidebar.selectbox("Belief Propagation Direction",['Forward pass', 'Backward pass'])
+bp_pass_direction = st.sidebar.selectbox("Belief Propagation Direction",['Both', 'Forward pass', 'Backward pass'])
 # forward_pass = st.sidebar.checkbox("Forward Pass", value=True)
 # backward_pass = st.sidebar.checkbox("Backward Pass", value=False)
 tree_priors = st.sidebar.selectbox("Prior Location",['root prior', 'leaf priors'])
