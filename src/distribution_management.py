@@ -6,7 +6,7 @@ import numpy as np
 def create_prior_distribution(
         distribution_type,
         measurement_range,
-        gauss_sigma
+        gauss_sigma=2.3
     ):
 
     discretisation = len(measurement_range)
