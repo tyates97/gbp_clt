@@ -136,7 +136,7 @@ def plot_results(graph, max_subplots, measurement_range, comparison_distribution
     y_max = calculate_max_belief(graph)
 
     # Set up the figure and layout
-    fig = plt.figure(figsize=(15, 12))
+    fig = plt.figure(figsize=(20, 16))
     num_rows = min(np.round(np.sqrt(len(variables_to_plot))).astype(int) + 1,4)  # +1 to include space for the factor graph
     num_columns = min(np.ceil(np.sqrt(len(variables_to_plot))).astype(int) + 1, 4)
     gs = fig.add_gridspec(num_rows, num_columns, figure=fig, width_ratios=np.append(np.ones(num_columns - 1), [num_columns])) # make lots of space on right for the factor graph
