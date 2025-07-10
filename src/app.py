@@ -11,7 +11,7 @@ st.title("Interactive Factor Graph Belief Propagation")
 # Sidebar controls
 st.sidebar.title("Controls")
 st.sidebar.subheader("Factor Graph Configuration")
-num_variables = st.sidebar.slider("Number of Variables", 2, 20, 12)
+num_variables = st.sidebar.slider("Number of Variables", 2, 50, 15)
 prior_distribution_type = st.sidebar.selectbox("Prior Distribution Type",['random', 'random symmetric', 'gaussian', 'top hat', 'horns', 'skew'])
 graph_type = st.sidebar.selectbox("Graph Type",['Loopy Graph', 'Tree Graph'])
 identical_smoothing_functions = st.sidebar.checkbox("Identical Smoothing Functions", value=False)
