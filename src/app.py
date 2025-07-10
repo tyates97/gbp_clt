@@ -16,18 +16,17 @@ prior_distribution_type = st.sidebar.selectbox(
     "Prior Distribution Type",
     ['random', 'random symmetric', 'gaussian', 'top hat', 'horns', 'skew']
 )
+graph_type = st.sidebar.selectbox("Graph Type",['Loopy Graph', 'Tree Graph'])
 
 # Loopy Graphs Topology
 st.sidebar.subheader("Loopy Graphs")
-num_loops = st.sidebar.slider("Number of Loops", 0, 6, 3)
+num_loops = st.sidebar.slider("Number of Loops", 1, 6, 3)
 num_priors = st.sidebar.slider("Number of Priors", 1, num_variables, 1)
 
 # Tree Graph Topology
 st.sidebar.subheader("Tree Graphs")
-is_tree = st.sidebar.checkbox("Tree factor graph", value=False)
 bp_pass_direction = st.sidebar.selectbox("Belief Propagation Direction",['Both', 'Forward pass', 'Backward pass'])
-# forward_pass = st.sidebar.checkbox("Forward Pass", value=True)
-# backward_pass = st.sidebar.checkbox("Backward Pass", value=False)
+branching_probability = st.sidebar.slider("Branching probability", 0.0, 1.0, 1.0, step=0.05)
 tree_priors = st.sidebar.selectbox("Prior Location",['root prior', 'leaf priors'])
 branching_factor = st.sidebar.slider("If tree, Branching Factor", 1, 5, 2, step=1)
 
@@ -43,7 +42,8 @@ min_measurement = -5
 max_measurement = 5
 max_subplots = 12
 gauss_sigma = 2.3  # Temporary, in case needed for the definition of a Gaussian prior
-
+if graph_type == 'Tree Graph': is_tree = True 
+else: is_tree = False
 measurement_range = np.linspace(min_measurement, max_measurement, belief_discretisation)
 
 # Build and run
@@ -57,6 +57,7 @@ graph = build_factor_graph(
     prior_distribution_type,
     gauss_sigma,
     branching_factor,
+    branching_probability,
     tree_priors
 )
 graph = run_belief_propagation(graph, num_iterations, bp_pass_direction)
