@@ -24,11 +24,10 @@ num_priors = st.sidebar.slider("Number of Priors", 1, num_variables, 1)
 
 # Tree Graph Topology
 st.sidebar.subheader("Tree Graphs")
-bp_pass_direction = st.sidebar.selectbox("Belief Propagation Direction",['Forward pass', 'Backward pass', 'Both'])
-branching_factor = st.sidebar.slider("Branching Factor", 1, 5, 2, step=1)
-branching_probability = st.sidebar.slider("Branching probability", 0.0, 1.0, 1.0, step=0.05)
 tree_prior_location = st.sidebar.selectbox("Prior Location",['root prior', 'leaf priors'])
-
+bp_pass_direction = st.sidebar.selectbox("Belief Propagation Direction",['Forward pass', 'Backward pass', 'Both'])
+branching_probability = st.sidebar.slider("Branching probability", 0.0, 1.0, 1.0, step=0.05)
+branching_factor = st.sidebar.slider("Branching Factor", 1, 5, 2, step=1)
 
 # Additional variables
 st.sidebar.subheader("Belief Propagation Configuration")
