@@ -1,5 +1,3 @@
-'External modules that are required for the project'
-
 numpy
 matplotlib
 scikit-learn
