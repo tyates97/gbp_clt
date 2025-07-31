@@ -38,6 +38,7 @@ class FactorGraph:
         self.num_loops = 0
         self.num_priors = 0
         self.is_tree = False
+        self.is_grid = False
 
     def add_variable(self, variable_name, belief_discretisation):
         variable_node = VariableNode(variable_name, belief_discretisation)
@@ -148,24 +149,59 @@ def add_tree_pairwise_factors(graph, branching_factor, branching_probability):
                 graph.add_factor([parent, child], function=pairwise_function)
                 queue.append(child)
 
-def add_pairwise_factors_to_graph(graph, num_loops, identical_smoothing_functions, measurement_range, prior_function, branching_factor, branching_probability):
+def add_grid_pairwise_factors(graph, grid_cols):
     num_variables = len(graph.variables)
+    # num_rows = int(np.ceil(num_variables/grid_cols))
+    belief_discretisation = len(graph.variables[0].belief)
+    i=0
+    for i in range(num_variables):
+        current_var = graph.variables[i]
+        below_var = None
+        right_var = None
+        # determine variable to the right of the current one, if it exists
+        if i+1 < num_variables: 
+            right_var = graph.variables[i+1]
+        # determine variable below the current one, if it exists
+        if i+grid_cols < num_variables: 
+            below_var = graph.variables[i+grid_cols]
+        # create a pairwise factor function for the right and below variables
+        pairwise_function_1 = dm.create_smoothing_factor_distribution(
+            belief_discretisation, prior=dm.create_prior_distribution('random', current_var.belief)
+        )
+        pairwise_function_2 = dm.create_smoothing_factor_distribution(
+            belief_discretisation, prior=dm.create_prior_distribution('random', current_var.belief)
+        )
+        
+        # Connect to variable below the current one (if it's correct).
+        if below_var:
+            graph.add_factor([current_var, below_var], pairwise_function_1)
+        
+        # Connect to variables to the right of the current one (if it's correct). 
+        if right_var and (i+1)%grid_cols!=0: 
+            graph.add_factor([current_var, right_var], pairwise_function_2)
+            
+    
+
+def add_pairwise_factors_to_graph(graph, num_loops, identical_smoothing_functions, measurement_range, prior_function, branching_factor, branching_probability, grid_cols):
     if graph.is_tree:            
         add_tree_pairwise_factors(graph, branching_factor, branching_probability)
+    elif graph.is_grid:
+        add_grid_pairwise_factors(graph, grid_cols)
     else:
         add_loopy_pairwise_factors(graph, num_loops, identical_smoothing_functions, measurement_range, prior_function)
 
 
 #TODO: make the number of arguments being passed here more efficient
-def build_factor_graph(num_variables, num_priors, num_loops, graph_type, identical_smoothing_functions, measurement_range, prior_distribution_type, branching_factor, branching_probability, tree_prior_location='root prior'):
+def build_factor_graph(num_variables, num_priors, num_loops, graph_type, identical_smoothing_functions, measurement_range, prior_distribution_type, branching_factor, branching_probability, grid_cols, tree_prior_location='root prior'):
     # Create a factor graph
     graph = FactorGraph()
     belief_discretisation = len(measurement_range)
-    if graph_type == 'Tree Graph': graph.is_tree = True
+    if graph_type == 'Tree': graph.is_tree = True
+    elif graph_type == 'Grid': graph.is_grid =  True
     prior_function = dm.create_prior_distribution(prior_distribution_type, measurement_range)
 
     add_variables_to_graph(graph, num_variables, belief_discretisation)
-    add_pairwise_factors_to_graph(graph, num_loops, identical_smoothing_functions, measurement_range, prior_function, branching_factor, branching_probability)
+    add_pairwise_factors_to_graph(graph, num_loops, identical_smoothing_functions, measurement_range, prior_function, branching_factor, branching_probability, grid_cols)
     add_priors_to_graph(graph, num_priors, prior_function, measurement_range, tree_prior_location)
 
     return graph

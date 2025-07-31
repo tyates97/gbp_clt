@@ -1,6 +1,6 @@
 import streamlit as st
 import numpy as np
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot
 
 from factor_graph import build_factor_graph
 from belief_propagation import run_belief_propagation
@@ -11,9 +11,9 @@ st.title("Interactive Factor Graph Belief Propagation")
 # Sidebar controls
 st.sidebar.title("Controls")
 st.sidebar.subheader("Factor Graph Configuration")
-num_variables = st.sidebar.slider("Number of Variables", 2, 50, 15)
+num_variables = st.sidebar.slider("Number of Variables", 2, 1000, 15)
 prior_distribution_type = st.sidebar.selectbox("Prior Distribution Type",['random', 'random symmetric', 'gaussian', 'top hat', 'horns', 'skew'])
-graph_type = st.sidebar.selectbox("Graph Type",['Loopy Graph', 'Tree Graph'])
+graph_type = st.sidebar.selectbox("Graph Type",['Loopy', 'Tree', 'Grid'])
 identical_smoothing_functions = st.sidebar.checkbox("Identical Smoothing Functions", value=False)
 show_comparison = st.sidebar.checkbox("Show Gaussian best fit", value=True)
 
@@ -27,7 +27,12 @@ st.sidebar.subheader("Tree Graphs")
 tree_prior_location = st.sidebar.selectbox("Prior Location",['root prior', 'leaf priors'])
 bp_pass_direction = st.sidebar.selectbox("Belief Propagation Direction",['Forward pass', 'Backward pass', 'Both'])
 branching_probability = st.sidebar.slider("Branching probability", 0.0, 1.0, 1.0, step=0.05)
-branching_factor = st.sidebar.slider("Branching Factor", 1, 5, 2, step=1)
+branching_factor = st.sidebar.slider("Branching Factor", 1, 7, 2, step=1)
+
+# Grid Graph Topology
+st.sidebar.subheader("Grid Graphs")
+grid_cols = st.sidebar.slider("Number of columns", 1,8,4,step=1)
+#TODO: add options to change prior location
 
 # Additional variables
 st.sidebar.subheader("Belief Propagation Configuration")
@@ -51,6 +56,7 @@ graph = build_factor_graph(
     prior_distribution_type,
     branching_factor,
     branching_probability,
+    grid_cols,
     tree_prior_location
 )
 graph = run_belief_propagation(graph, num_iterations, bp_pass_direction)
