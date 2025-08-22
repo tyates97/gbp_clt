@@ -1,6 +1,7 @@
 
 # External libraries
 import numpy as np
+import networkx as nx
 from sklearn.metrics import mean_squared_error
 
 # Local modules
@@ -65,3 +66,48 @@ def optimise_gaussian(target_belief, measurement_range):
     optimal_mean = np.average(measurement_range, weights=target_belief)
 
     return min_mse, optimal_sigma, optimal_mean
+
+
+''' function to find the nearest prior to a variable in a factor graph '''
+# def find_nearest_prior(variable, graph):
+    
+def find_all_nearest_priors(graph):
+    """
+    Returns a dict mapping variable names to their shortest inter-variable distance to any variable with a prior factor.
+    """
+    # Find variable nodes with a prior factor neighbor
+    prior_variables = set()
+    for factor in graph.factors:
+        if factor.factor_type == 'prior' and factor.neighbors:
+            prior_variables.add(factor.neighbors[0].name)
+
+    # Compute shortest path lengths from all variables to all others
+    # Only count steps between variable nodes (skip factor nodes)
+    variable_names = [v.name for v in graph.variables]
+    G = graph.graph
+
+    # Precompute all shortest paths between variables
+    all_shortest_paths = dict(nx.all_pairs_shortest_path(G))
+
+    # For each variable, find the minimum number of variable-to-variable steps to any prior variable
+    distances = {}
+    for var in variable_names:
+        min_steps = float('inf')
+        for prior_var in prior_variables:
+            if prior_var == var:
+                min_steps = 0
+                break
+            # Path alternates variable-factor-variable... so steps = (len(path)-1)//2
+            try:
+                path = all_shortest_paths[var][prior_var]
+                var_steps = (len(path)-1)//2
+                if var_steps < min_steps:
+                    min_steps = var_steps
+            except KeyError:
+                continue
+        distances[var] = min_steps if min_steps != float('inf') else None
+    return distances
+
+
+def find_nearest_prior(variable, graph):
+    return find_all_nearest_priors(graph).get(variable.name)

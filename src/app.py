@@ -1,37 +1,46 @@
 import streamlit as st
 import numpy as np
-# import matplotlib.pyplot
+import matplotlib.pyplot as plt
+import collections
 
+import optimisation as opt
 from factor_graph import build_factor_graph
 from belief_propagation import run_belief_propagation
 from graphics import plot_results
+
 
 st.title("Interactive Factor Graph Belief Propagation")
 
 # Sidebar controls
 st.sidebar.title("Controls")
 st.sidebar.subheader("Factor Graph Configuration")
-num_variables = st.sidebar.slider("Number of Variables", 2, 1000, 15)
-prior_distribution_type = st.sidebar.selectbox("Prior Distribution Type",['random', 'random symmetric', 'gaussian', 'top hat', 'horns', 'skew'])
+num_variables = st.sidebar.slider("Number of Variables", 2, 200, 15)
+# prior_distribution_type = st.sidebar.selectbox("Prior Distribution Type",['random', 'random symmetric', 'gaussian', 'top hat', 'horns', 'skew'])
 graph_type = st.sidebar.selectbox("Graph Type",['Loopy', 'Tree', 'Grid'])
-identical_smoothing_functions = st.sidebar.checkbox("Identical Smoothing Functions", value=False)
+# identical_smoothing_functions = st.sidebar.checkbox("Identical Smoothing Functions", value=False)
 show_comparison = st.sidebar.checkbox("Show Gaussian best fit", value=True)
+if graph_type == 'Tree':
+    prior_location = st.sidebar.selectbox("Prior Location", ['root', 'leaf'])
+elif graph_type == 'Grid':
+    prior_location = st.sidebar.selectbox("Prior Location", ['top', 'edges', 'random'])
+else:
+    prior_location = 'root'
+num_priors = st.sidebar.slider("Number of Priors", 1, num_variables, 1)
 
 # Loopy Graphs Topology
 st.sidebar.subheader("Loopy Graphs")
 num_loops = st.sidebar.slider("Number of Loops", 1, 6, 3)
-num_priors = st.sidebar.slider("Number of Priors", 1, num_variables, 1)
 
 # Tree Graph Topology
 st.sidebar.subheader("Tree Graphs")
-tree_prior_location = st.sidebar.selectbox("Prior Location",['root prior', 'leaf priors'])
+# tree_prior_location = st.sidebar.selectbox("Prior Location",['root prior', 'leaf priors'])
 bp_pass_direction = st.sidebar.selectbox("Belief Propagation Direction",['Forward pass', 'Backward pass', 'Both'])
 branching_probability = st.sidebar.slider("Branching probability", 0.0, 1.0, 1.0, step=0.05)
 branching_factor = st.sidebar.slider("Branching Factor", 1, 7, 2, step=1)
 
 # Grid Graph Topology
 st.sidebar.subheader("Grid Graphs")
-grid_cols = st.sidebar.slider("Number of columns", 1,8,4,step=1)
+show_heatmap = st.sidebar.checkbox("Show Heatmap", value=False)
 #TODO: add options to change prior location
 
 # Additional variables
@@ -39,7 +48,7 @@ st.sidebar.subheader("Belief Propagation Configuration")
 num_iterations = st.sidebar.slider("Number of BP Iterations", 1, 100, 50)
 belief_discretisation = st.sidebar.slider("Belief Discretisation", 8, 128, 52, step=4)
 
-comparison_distribution = 'gaussian'
+rng = np.random.default_rng(seed=42)  # For reproducibility
 min_measurement = -5
 max_measurement = 5
 max_subplots = 12
@@ -51,13 +60,10 @@ graph = build_factor_graph(
     num_priors,
     num_loops,
     graph_type,
-    identical_smoothing_functions,
     measurement_range,
-    prior_distribution_type,
     branching_factor,
     branching_probability,
-    grid_cols,
-    tree_prior_location
+    prior_location
 )
 graph = run_belief_propagation(graph, num_iterations, bp_pass_direction)
 
@@ -67,7 +73,39 @@ fig = plot_results(
     graph,
     max_subplots,
     measurement_range,
-    comparison_distribution,
-    show_comparison
+    show_comparison,
+    show_heatmap
 )
 st.pyplot(fig)
+
+### Plotting MSE vs distance to prior
+
+length_to_priors = list(opt.find_all_nearest_priors(graph).values())
+# get all MSEs to best-fit gaussian
+gauss_mse = []
+for variable in graph.variables:
+    min_mse,_,_ = opt.optimise_gaussian(variable.belief, measurement_range)
+    gauss_mse.append(min_mse)
+
+# Group MSEs by distance
+mse_by_distance = collections.defaultdict(list)
+for dist, mse in zip(length_to_priors, gauss_mse):
+    mse_by_distance[dist].append(mse)
+
+# Compute mean MSE for each distance
+mean_mse = {dist: np.mean(mse_list) for dist, mse_list in mse_by_distance.items()}
+
+# Sort by distance for plotting
+sorted_distances = sorted(mean_mse.keys())
+sorted_mse = [mean_mse[dist] for dist in sorted_distances]
+
+# Create the plot
+fig2, ax2 = plt.subplots()
+ax2.plot(sorted_distances, sorted_mse, marker='o')
+ax2.set_xlabel("Distance to nearest prior")
+ax2.set_ylabel("MSE to best-fit Gaussian")
+ax2.set_title("MSE vs. Distance to Prior")
+
+# Show in a separate Streamlit section or expander
+with st.expander("Show MSE vs. Distance to Prior plot"):
+    st.pyplot(fig2)
