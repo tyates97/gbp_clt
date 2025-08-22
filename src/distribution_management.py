@@ -4,38 +4,35 @@ import numpy as np
 
 # creates a discrete distribution for the variable priors
 def create_prior_distribution(
-        distribution_type,
-        measurement_range,
-        gauss_sigma=2.3
+        # distribution_type,
+         measurement_range
+        #, gauss_sigma=2.3
     ):
 
     discretisation = len(measurement_range)
     unnormalised_prior = np.zeros(discretisation)
     measurement_mean = np.mean(measurement_range)
 
-    if distribution_type == 'random':
-        unnormalised_prior[discretisation//4:3*discretisation//4] = np.random.rand(discretisation//2)
+    # if distribution_type == 'random':
+    unnormalised_prior[discretisation//4:3*discretisation//4] = np.random.rand(discretisation//2)
 
-    if distribution_type == 'random symmetric':
-        unnormalised_prior[discretisation//4:discretisation//2] = np.random.rand(discretisation//4)
-        unnormalised_prior[discretisation//2:3*discretisation//4] = unnormalised_prior[discretisation//4:discretisation//2][::-1]
+    # if distribution_type == 'random symmetric':
+    #     unnormalised_prior[discretisation//4:discretisation//2] = np.random.rand(discretisation//4)
+    #     unnormalised_prior[discretisation//2:3*discretisation//4] = unnormalised_prior[discretisation//4:discretisation//2][::-1]
 
-    if distribution_type == 'horns':
-        width = (max(measurement_range)-measurement_mean)/5         # If horns are too far apart, convolution won't work
-        unnormalised_prior = np.where(np.abs(measurement_range - measurement_mean) < width, 0.0, 1.0)
+    # if distribution_type == 'horns':
+    #     width = (max(measurement_range)-measurement_mean)/5         # If horns are too far apart, convolution won't work
+    #     unnormalised_prior = np.where(np.abs(measurement_range - measurement_mean) < width, 0.0, 1.0)
 
-    if distribution_type == 'skew':
-        unnormalised_prior = np.where(measurement_range < measurement_mean, 1.0, 0.0)
+    # if distribution_type == 'skew':
+    #     unnormalised_prior = np.where(measurement_range < measurement_mean, 1.0, 0.0)
 
-    if distribution_type == 'gaussian':
-        unnormalised_prior = create_gaussian_distribution(measurement_range, gauss_sigma)
+    # if distribution_type == 'gaussian':
+    #     unnormalised_prior = create_gaussian_distribution(measurement_range, gauss_sigma)
 
-    if distribution_type == 'top hat':
-        top_hat_width = (max(measurement_range) - measurement_mean)/2
-        unnormalised_prior = np.where(np.abs(measurement_range - measurement_mean) < top_hat_width, 1.0, 0.0)
-
-    unnormalised_prior[:discretisation // 4] = np.zeros(discretisation // 4)
-    unnormalised_prior[3 * discretisation // 4:] = np.zeros(discretisation // 4)
+    # if distribution_type == 'top hat':
+    #     top_hat_width = (max(measurement_range) - measurement_mean)/2
+    #     unnormalised_prior = np.where(np.abs(measurement_range - measurement_mean) < top_hat_width, 1.0, 0.0)
     return normalise(unnormalised_prior)
 
 
