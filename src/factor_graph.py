@@ -39,6 +39,7 @@ class FactorGraph:
         self.num_priors = 0
         self.is_tree = False
         self.is_grid = False
+        self.closest_prior = None
 
     def add_variable(self, variable_name, belief_discretisation):
         variable_node = VariableNode(variable_name, belief_discretisation)
@@ -79,29 +80,57 @@ def add_variables_to_graph(graph, num_variables, belief_discretisation):
     for i in range(num_variables):
         graph.add_variable(f'X{i + 1}', belief_discretisation)
 
-def add_priors_to_graph(graph, num_priors, prior_function, measurement_range, tree_priors):
+def add_priors_to_graph(graph, num_priors, measurement_range, prior_location):
     # Add prior factors
     # if it's a tree and you want priors on the leaf nodes
-    if (graph.is_tree and tree_priors == 'leaf priors'):
+    if (graph.is_tree and prior_location == 'leaf'):
         for variable in graph.variables:
             if len(variable.neighbors) == 1:
-                random_prior_function = dm.create_prior_distribution('random', measurement_range)
+                random_prior_function = dm.create_prior_distribution(measurement_range)
                 graph.add_factor([variable], random_prior_function, factor_type='prior')
     # Otherwise if it's loopy or a tree with a root prior
-    elif num_priors > 0:
+    elif prior_location == 'root' or prior_location == 'random':
         # add a random prior to all leaf nodes
         for i in range(num_priors):
-            graph.add_factor([graph.variables[i*int((len(graph.variables)/num_priors))]], prior_function, factor_type='prior')
+            random_prior_function = dm.create_prior_distribution(measurement_range)
+            graph.add_factor([graph.variables[i*int((len(graph.variables)/num_priors))]], random_prior_function, factor_type='prior')
             graph.num_priors += 1
+    elif prior_location == 'top':
+        i = 0
+        for var in graph.variables:
+            if i < num_priors:
+                random_prior_function = dm.create_prior_distribution(measurement_range)
+                graph.add_factor([var], random_prior_function, factor_type='prior')
+                graph.num_priors += 1
+                i+=1
+            else:
+                break
+    elif prior_location == 'edges':
+        # add priors to the top left corner
+        var_cols = int(np.ceil(np.sqrt(len(graph.variables))))
+        top_priors = num_priors//2 + num_priors%2
+        top_prior_cols = int(np.ceil(np.sqrt(top_priors)))
+        for i in range(top_priors):
+            prior_function = dm.create_prior_distribution(measurement_range)
+            graph.add_factor([graph.variables[i+i//top_prior_cols*(var_cols-top_prior_cols)]], prior_function, factor_type='prior')
 
-def add_loopy_pairwise_factors(graph, num_loops, identical_smoothing_functions, measurement_range, prior_function):
+        # add priors to the bottom right corner
+        bottom_priors = num_priors//2
+        bottom_prior_cols = int(np.ceil(np.sqrt(bottom_priors)))
+        for i in range(bottom_priors):
+            prior_function = dm.create_prior_distribution(measurement_range)
+            graph.add_factor([graph.variables[-1-i-(i//bottom_prior_cols)*(var_cols-bottom_prior_cols)]], prior_function, factor_type='prior')
+
+
+
+def add_loopy_pairwise_factors(graph, num_loops, measurement_range):
     num_variables = len(graph.variables)
     belief_discretisation = len(graph.variables[0].belief)
+    prior_function = dm.create_prior_distribution(measurement_range)
     pairwise_function = dm.create_smoothing_factor_distribution(belief_discretisation, prior_function)
     for i in range(num_variables):
         # add factors between adjacent variables
-        if not identical_smoothing_functions:
-            pairwise_function = dm.create_smoothing_factor_distribution(belief_discretisation, prior=dm.create_prior_distribution('random', measurement_range))
+        pairwise_function = dm.create_smoothing_factor_distribution(belief_discretisation, prior=dm.create_prior_distribution(measurement_range))
         
         # if it's a chain, connect all the variables in a line
         if i < num_variables - 1:
@@ -144,13 +173,15 @@ def add_tree_pairwise_factors(graph, branching_factor, branching_probability):
                 child = variables[next_var_idx]
                 next_var_idx += 1
                 pairwise_function = dm.create_smoothing_factor_distribution(
-                    belief_discretisation, prior=dm.create_prior_distribution('random', child.belief)
+                    belief_discretisation, prior=dm.create_prior_distribution(child.belief)
                 )
                 graph.add_factor([parent, child], function=pairwise_function)
                 queue.append(child)
 
-def add_grid_pairwise_factors(graph, grid_cols):
+def add_grid_pairwise_factors(graph):
     num_variables = len(graph.variables)
+    # grid_cols = round(np.sqrt(num_variables))  # Assuming a square grid for simplicity
+    grid_cols = int(np.ceil(np.sqrt(num_variables)))  # Assuming a square grid for simplicity
     # num_rows = int(np.ceil(num_variables/grid_cols))
     belief_discretisation = len(graph.variables[0].belief)
     i=0
@@ -166,10 +197,10 @@ def add_grid_pairwise_factors(graph, grid_cols):
             below_var = graph.variables[i+grid_cols]
         # create a pairwise factor function for the right and below variables
         pairwise_function_1 = dm.create_smoothing_factor_distribution(
-            belief_discretisation, prior=dm.create_prior_distribution('random', current_var.belief)
+            belief_discretisation, prior=dm.create_prior_distribution(current_var.belief)
         )
         pairwise_function_2 = dm.create_smoothing_factor_distribution(
-            belief_discretisation, prior=dm.create_prior_distribution('random', current_var.belief)
+            belief_discretisation, prior=dm.create_prior_distribution(current_var.belief)
         )
         
         # Connect to variable below the current one (if it's correct).
@@ -182,26 +213,25 @@ def add_grid_pairwise_factors(graph, grid_cols):
             
     
 
-def add_pairwise_factors_to_graph(graph, num_loops, identical_smoothing_functions, measurement_range, prior_function, branching_factor, branching_probability, grid_cols):
+def add_pairwise_factors_to_graph(graph, num_loops, measurement_range, branching_factor, branching_probability):
     if graph.is_tree:            
         add_tree_pairwise_factors(graph, branching_factor, branching_probability)
     elif graph.is_grid:
-        add_grid_pairwise_factors(graph, grid_cols)
+        add_grid_pairwise_factors(graph)
     else:
-        add_loopy_pairwise_factors(graph, num_loops, identical_smoothing_functions, measurement_range, prior_function)
+        add_loopy_pairwise_factors(graph, num_loops, measurement_range)
 
 
 #TODO: make the number of arguments being passed here more efficient
-def build_factor_graph(num_variables, num_priors, num_loops, graph_type, identical_smoothing_functions, measurement_range, prior_distribution_type, branching_factor, branching_probability, grid_cols, tree_prior_location='root prior'):
+def build_factor_graph(num_variables, num_priors, num_loops, graph_type, measurement_range, branching_factor, branching_probability, prior_location):
     # Create a factor graph
     graph = FactorGraph()
     belief_discretisation = len(measurement_range)
     if graph_type == 'Tree': graph.is_tree = True
     elif graph_type == 'Grid': graph.is_grid =  True
-    prior_function = dm.create_prior_distribution(prior_distribution_type, measurement_range)
 
     add_variables_to_graph(graph, num_variables, belief_discretisation)
-    add_pairwise_factors_to_graph(graph, num_loops, identical_smoothing_functions, measurement_range, prior_function, branching_factor, branching_probability, grid_cols)
-    add_priors_to_graph(graph, num_priors, prior_function, measurement_range, tree_prior_location)
+    add_pairwise_factors_to_graph(graph, num_loops, measurement_range, branching_factor, branching_probability)
+    add_priors_to_graph(graph, num_priors, measurement_range, prior_location)
 
     return graph
