@@ -2,7 +2,6 @@
 
 import numpy as np
 
-
 num_variables = 15
 graph_type = 'Loopy'
 show_comparison = True

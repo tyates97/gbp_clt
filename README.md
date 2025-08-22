@@ -26,7 +26,7 @@ All scripts are contained in the /src directory. A brief description of the purp
 - distribution_management = a script containing all functions to create or manipulate probability distributions
 - factor_graph = a script containing all functions and classes related to defining the factor graph
 - graphics = a script containing all functions to create the graphics
-- main = a script that will run the programme when run in a python IDE
+- config = file containing all global variables
 
 
 ## Contributing
