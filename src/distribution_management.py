@@ -2,7 +2,10 @@
 # External Libraries
 import numpy as np
 
-rng = np.random.default_rng(seed=42)  # TODO: implement! For reproducibility
+ # Internal modules
+import config as cfg
+
+cfg.rng = np.random.default_rng(seed=42)
 
 # creates a discrete distribution for the variable priors
 def create_prior_distribution(
@@ -13,10 +16,9 @@ def create_prior_distribution(
 
     discretisation = len(measurement_range)
     unnormalised_prior = np.zeros(discretisation)
-    measurement_mean = np.mean(measurement_range)
 
     # if distribution_type == 'random':
-    unnormalised_prior[discretisation//4:3*discretisation//4] = rng.random(discretisation//2)
+    unnormalised_prior[discretisation//4:3*discretisation//4] = cfg.rng.random(discretisation//2)
     # unnormalised_prior[discretisation//4:3*discretisation//4] = np.random.rand(discretisation//2)
 
     # if distribution_type == 'random symmetric':
@@ -40,10 +42,14 @@ def create_prior_distribution(
 
 
 # creates a smoothing factor that encourages neighbouring variables to have the same factor
-def create_smoothing_factor_distribution(
-        discretisation,
-        prior=None
-    ):
+def create_smoothing_factor_distribution(discretisation, prior=None, measurement_range=None):
+
+    if prior is None:
+        mrange = measurement_range if measurement_range is not None else getattr(cfg, "measurement_range", None)
+        if mrange is None:
+            raise ValueError("measurement_range required (pass it or set config.measurement_range).")
+        prior = create_prior_distribution(mrange)
+
     unnormalised_factor_values = np.zeros((discretisation, discretisation))
     # Fill in the factor matrix
     for x1_rows in range(discretisation):

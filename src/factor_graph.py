@@ -126,11 +126,11 @@ def add_priors_to_graph(graph, num_priors, measurement_range, prior_location):
 def add_loopy_pairwise_factors(graph, num_loops, measurement_range):
     num_variables = len(graph.variables)
     belief_discretisation = len(graph.variables[0].belief)
-    prior_function = dm.create_prior_distribution(measurement_range)
-    pairwise_function = dm.create_smoothing_factor_distribution(belief_discretisation, prior_function)
+    # prior_function = dm.create_prior_distribution(measurement_range)
+    pairwise_function = dm.create_smoothing_factor_distribution(belief_discretisation)
     for i in range(num_variables):
         # add factors between adjacent variables
-        pairwise_function = dm.create_smoothing_factor_distribution(belief_discretisation, prior=dm.create_prior_distribution(measurement_range))
+        pairwise_function = dm.create_smoothing_factor_distribution(belief_discretisation)
         
         # if it's a chain, connect all the variables in a line
         if i < num_variables - 1:
@@ -198,10 +198,10 @@ def add_grid_pairwise_factors(graph):
             below_var = graph.variables[i+grid_cols]
         # create a pairwise factor function for the right and below variables
         pairwise_function_1 = dm.create_smoothing_factor_distribution(
-            belief_discretisation, prior=dm.create_prior_distribution(current_var.belief)
+            belief_discretisation
         )
         pairwise_function_2 = dm.create_smoothing_factor_distribution(
-            belief_discretisation, prior=dm.create_prior_distribution(current_var.belief)
+            belief_discretisation
         )
         
         # Connect to variable below the current one (if it's correct).

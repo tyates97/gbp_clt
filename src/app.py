@@ -5,6 +5,7 @@ import collections
 
 import optimisation as opt
 import distribution_management as dm
+import config as cfg
 from factor_graph import build_factor_graph
 from belief_propagation import run_belief_propagation
 from graphics import plot_results
@@ -15,76 +16,72 @@ st.title("Interactive Factor Graph Belief Propagation")
 # Sidebar controls
 st.sidebar.title("Controls")
 st.sidebar.subheader("Factor Graph Configuration")
-num_variables = st.sidebar.slider("Number of Variables", 2, 200, 15)
+cfg.num_variables = st.sidebar.slider("Number of Variables", 2, 200, 15)
 # prior_distribution_type = st.sidebar.selectbox("Prior Distribution Type",['random', 'random symmetric', 'gaussian', 'top hat', 'horns', 'skew'])
-graph_type = st.sidebar.selectbox("Graph Type",['Loopy', 'Tree', 'Grid'])
+cfg.graph_type = st.sidebar.selectbox("Graph Type",['Loopy', 'Tree', 'Grid'])
 # identical_smoothing_functions = st.sidebar.checkbox("Identical Smoothing Functions", value=False)
-show_comparison = st.sidebar.checkbox("Show Gaussian best fit", value=True)
-if graph_type == 'Tree':
-    prior_location = st.sidebar.selectbox("Prior Location", ['root', 'leaf'])
-elif graph_type == 'Grid':
-    prior_location = st.sidebar.selectbox("Prior Location", ['top', 'edges', 'random'])
+cfg.show_comparison = st.sidebar.checkbox("Show Gaussian best fit", value=True)
+if cfg.graph_type == 'Tree':
+    cfg.prior_location = st.sidebar.selectbox("Prior Location", ['root', 'leaf'])
+elif cfg.graph_type == 'Grid':
+    cfg.prior_location = st.sidebar.selectbox("Prior Location", ['top', 'edges', 'random'])
 else:
-    prior_location = 'root'
-num_priors = st.sidebar.slider("Number of Priors", 1, num_variables, 1)
+    cfg.prior_location = 'root'
+cfg.num_priors = st.sidebar.slider("Number of Priors", 1, cfg.num_variables, 1)
 
 # Default values so variables exist when their section is hidden
-num_loops = 3
-bp_pass_direction = 'Both'
-branching_probability = 1.0
-branching_factor = 2
-show_heatmap = False
+# cfg.num_loops = 3
+# cfg.bp_pass_direction = 'Both'
+# cfg.branching_probability = 1.0
+# cfg.branching_factor = 2
+# cfg.show_heatmap = False
 
 # Loopy Graphs submenu
-if graph_type == 'Loopy':
-    num_loops = st.sidebar.slider("Number of Loops", 1, 6, 3)
+if cfg.graph_type == 'Loopy':
+    cfg.num_loops = st.sidebar.slider("Number of Loops", 1, 6, 3)
 
 # Tree Graph submenu
-if graph_type == 'Tree':
+if cfg.graph_type == 'Tree':
     # tree_prior_location = st.sidebar.selectbox("Prior Location",['root prior', 'leaf priors'])
-    bp_pass_direction = st.sidebar.selectbox("Belief Propagation Direction",['Forward pass', 'Backward pass', 'Both'], index=2)
-    branching_probability = st.sidebar.slider("Branching probability", 0.0, 1.0, 1.0, step=0.05)
-    branching_factor = st.sidebar.slider("Branching Factor", 1, 7, 2, step=1)
+    cfg.bp_pass_direction = st.sidebar.selectbox("Belief Propagation Direction",['Forward pass', 'Backward pass', 'Both'], index=2)
+    cfg.branching_probability = st.sidebar.slider("Branching probability", 0.0, 1.0, 1.0, step=0.05)
+    cfg.branching_factor = st.sidebar.slider("Branching Factor", 1, 7, 2, step=1)
 
 # Grid Graph submenu
-if graph_type == 'Grid':
-    show_heatmap = st.sidebar.checkbox("Show Heatmap", value=False)
+if cfg.graph_type == 'Grid':
+    cfg.show_heatmap = st.sidebar.checkbox("Show Heatmap", value=False)
 
 # Additional variables
 st.sidebar.subheader("Belief Propagation Configuration")
-num_iterations = st.sidebar.slider("Number of BP Iterations", 1, 100, 50)
-belief_discretisation = st.sidebar.slider("Belief Discretisation", 8, 128, 52, step=4)
-random_seed = st.sidebar.number_input("Random Seed", value=42, step=1)
-
-min_measurement = -5
-max_measurement = 5
-max_subplots = 12
-measurement_range = np.linspace(min_measurement, max_measurement, belief_discretisation)
-dm.rng = np.random.default_rng(seed=random_seed)  # Update RNG with user-defined seed
+cfg.num_iterations = st.sidebar.slider("Number of BP Iterations", 1, 100, 50)
+cfg.belief_discretisation = st.sidebar.slider("Belief Discretisation", 8, 128, 52, step=4)
+cfg.random_seed = st.sidebar.number_input("Random Seed", value=42, step=1)
+cfg.rng = np.random.default_rng(seed=cfg.random_seed)  # Update RNG with user-defined seed
 
 # Build and run
 graph = build_factor_graph(
-    num_variables,
-    num_priors,
-    num_loops,
-    graph_type,
-    measurement_range,
-    branching_factor,
-    branching_probability,
-    prior_location
+    cfg.num_variables,
+    cfg.num_priors,
+    cfg.num_loops,
+    cfg.graph_type,
+    cfg.measurement_range,
+    cfg.branching_factor,
+    cfg.branching_probability,
+    cfg.prior_location
 )
-graph = run_belief_propagation(graph, num_iterations, bp_pass_direction)
+graph = run_belief_propagation(graph, cfg.num_iterations, cfg.bp_pass_direction)
 
 # Plotting
 st.subheader("Results")
 fig = plot_results(
     graph,
-    max_subplots,
-    measurement_range,
-    show_comparison,
-    show_heatmap
+    cfg.max_subplots,
+    cfg.measurement_range,
+    cfg.show_comparison,
+    cfg.show_heatmap
 )
 st.pyplot(fig)
+
 
 ### Plotting MSE vs distance to prior
 
@@ -92,7 +89,7 @@ length_to_priors = list(opt.find_all_nearest_priors(graph).values())
 # get all MSEs to best-fit gaussian
 gauss_mse = []
 for variable in graph.variables:
-    min_mse,_,_ = opt.optimise_gaussian(variable.belief, measurement_range)
+    min_mse,_,_ = opt.optimise_gaussian(variable.belief, cfg.measurement_range)
     gauss_mse.append(min_mse)
 
 # Group MSEs by distance

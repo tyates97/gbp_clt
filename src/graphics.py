@@ -7,7 +7,7 @@ import networkx as nx
 
 # local modules
 import distribution_management as dm
-from optimisation import optimise_gaussian, optimise_q_gaussian
+from optimisation import optimise_gaussian
 
 ''' Setting the font sizes '''
 plt.rcParams.update({
