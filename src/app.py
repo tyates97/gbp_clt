@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import collections
 
 import optimisation as opt
+import distribution_management as dm
 from factor_graph import build_factor_graph
 from belief_propagation import run_belief_propagation
 from graphics import plot_results
@@ -53,12 +54,13 @@ if graph_type == 'Grid':
 st.sidebar.subheader("Belief Propagation Configuration")
 num_iterations = st.sidebar.slider("Number of BP Iterations", 1, 100, 50)
 belief_discretisation = st.sidebar.slider("Belief Discretisation", 8, 128, 52, step=4)
+random_seed = st.sidebar.number_input("Random Seed", value=42, step=1)
 
-rng = np.random.default_rng(seed=42)  # TODO: implement! For reproducibility
 min_measurement = -5
 max_measurement = 5
 max_subplots = 12
 measurement_range = np.linspace(min_measurement, max_measurement, belief_discretisation)
+dm.rng = np.random.default_rng(seed=random_seed)  # Update RNG with user-defined seed
 
 # Build and run
 graph = build_factor_graph(

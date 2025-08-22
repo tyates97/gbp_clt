@@ -2,6 +2,8 @@
 # External Libraries
 import numpy as np
 
+rng = np.random.default_rng(seed=42)  # TODO: implement! For reproducibility
+
 # creates a discrete distribution for the variable priors
 def create_prior_distribution(
         # distribution_type,
@@ -14,7 +16,8 @@ def create_prior_distribution(
     measurement_mean = np.mean(measurement_range)
 
     # if distribution_type == 'random':
-    unnormalised_prior[discretisation//4:3*discretisation//4] = np.random.rand(discretisation//2)
+    unnormalised_prior[discretisation//4:3*discretisation//4] = rng.random(discretisation//2)
+    # unnormalised_prior[discretisation//4:3*discretisation//4] = np.random.rand(discretisation//2)
 
     # if distribution_type == 'random symmetric':
     #     unnormalised_prior[discretisation//4:discretisation//2] = np.random.rand(discretisation//4)
