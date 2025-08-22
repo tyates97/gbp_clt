@@ -27,28 +27,34 @@ else:
     prior_location = 'root'
 num_priors = st.sidebar.slider("Number of Priors", 1, num_variables, 1)
 
-# Loopy Graphs Topology
-st.sidebar.subheader("Loopy Graphs")
-num_loops = st.sidebar.slider("Number of Loops", 1, 6, 3)
+# Default values so variables exist when their section is hidden
+num_loops = 3
+bp_pass_direction = 'Both'
+branching_probability = 1.0
+branching_factor = 2
+show_heatmap = False
 
-# Tree Graph Topology
-st.sidebar.subheader("Tree Graphs")
-# tree_prior_location = st.sidebar.selectbox("Prior Location",['root prior', 'leaf priors'])
-bp_pass_direction = st.sidebar.selectbox("Belief Propagation Direction",['Forward pass', 'Backward pass', 'Both'])
-branching_probability = st.sidebar.slider("Branching probability", 0.0, 1.0, 1.0, step=0.05)
-branching_factor = st.sidebar.slider("Branching Factor", 1, 7, 2, step=1)
+# Loopy Graphs submenu
+if graph_type == 'Loopy':
+    num_loops = st.sidebar.slider("Number of Loops", 1, 6, 3)
 
-# Grid Graph Topology
-st.sidebar.subheader("Grid Graphs")
-show_heatmap = st.sidebar.checkbox("Show Heatmap", value=False)
-#TODO: add options to change prior location
+# Tree Graph submenu
+if graph_type == 'Tree':
+    # tree_prior_location = st.sidebar.selectbox("Prior Location",['root prior', 'leaf priors'])
+    bp_pass_direction = st.sidebar.selectbox("Belief Propagation Direction",['Forward pass', 'Backward pass', 'Both'], index=2)
+    branching_probability = st.sidebar.slider("Branching probability", 0.0, 1.0, 1.0, step=0.05)
+    branching_factor = st.sidebar.slider("Branching Factor", 1, 7, 2, step=1)
+
+# Grid Graph submenu
+if graph_type == 'Grid':
+    show_heatmap = st.sidebar.checkbox("Show Heatmap", value=False)
 
 # Additional variables
 st.sidebar.subheader("Belief Propagation Configuration")
 num_iterations = st.sidebar.slider("Number of BP Iterations", 1, 100, 50)
 belief_discretisation = st.sidebar.slider("Belief Discretisation", 8, 128, 52, step=4)
 
-rng = np.random.default_rng(seed=42)  # For reproducibility
+rng = np.random.default_rng(seed=42)  # TODO: implement! For reproducibility
 min_measurement = -5
 max_measurement = 5
 max_subplots = 12
