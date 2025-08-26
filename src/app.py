@@ -17,9 +17,7 @@ st.title("Interactive Factor Graph Belief Propagation")
 st.sidebar.title("Controls")
 st.sidebar.subheader("Factor Graph Configuration")
 cfg.num_variables = st.sidebar.slider("Number of Variables", 2, 200, 15)
-# prior_distribution_type = st.sidebar.selectbox("Prior Distribution Type",['random', 'random symmetric', 'gaussian', 'top hat', 'horns', 'skew'])
 cfg.graph_type = st.sidebar.selectbox("Graph Type",['Loopy', 'Tree', 'Grid'])
-# identical_smoothing_functions = st.sidebar.checkbox("Identical Smoothing Functions", value=False)
 cfg.show_comparison = st.sidebar.checkbox("Show Gaussian best fit", value=True)
 if cfg.graph_type == 'Tree':
     cfg.prior_location = st.sidebar.selectbox("Prior Location", ['root', 'leaf'])
@@ -28,13 +26,6 @@ elif cfg.graph_type == 'Grid':
 else:
     cfg.prior_location = 'root'
 cfg.num_priors = st.sidebar.slider("Number of Priors", 1, cfg.num_variables, 1)
-
-# Default values so variables exist when their section is hidden
-# cfg.num_loops = 3
-# cfg.bp_pass_direction = 'Both'
-# cfg.branching_probability = 1.0
-# cfg.branching_factor = 2
-# cfg.show_heatmap = False
 
 # Loopy Graphs submenu
 if cfg.graph_type == 'Loopy':
@@ -53,8 +44,10 @@ if cfg.graph_type == 'Grid':
 
 # Additional variables
 st.sidebar.subheader("Belief Propagation Configuration")
-cfg.num_iterations = st.sidebar.slider("Number of BP Iterations", 1, 100, 50)
-cfg.belief_discretisation = st.sidebar.slider("Belief Discretisation", 8, 128, 52, step=4)
+cfg.num_iterations = st.sidebar.slider("Number of BP Iterations", 1, 100, cfg.num_iterations)
+cfg.belief_discretisation = st.sidebar.slider("Belief Discretisation", 8, 128, cfg.belief_discretisation, step=4)
+cfg.prior_width = st.sidebar.slider("Prior Width", 4, int(cfg.belief_discretisation/2), cfg.prior_width, step=4)
+cfg.smoothing_width = st.sidebar.slider("Smoothing Width", 4, int(cfg.belief_discretisation/2), cfg.smoothing_width, step=4)
 cfg.random_seed = st.sidebar.number_input("Random Seed", value=42, step=1)
 cfg.rng = np.random.default_rng(seed=cfg.random_seed)  # Update RNG with user-defined seed
 

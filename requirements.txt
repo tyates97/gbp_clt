@@ -4,3 +4,4 @@ scikit-learn
 networkx
 streamlit
 collections
+opencv-python
