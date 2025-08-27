@@ -104,4 +104,4 @@ ax2.set_xlabel("Distance to nearest prior")
 ax2.set_ylabel("MSE to best-fit Gaussian")
 ax2.set_title("MSE vs. Distance to Prior")
 
-plt.show
+plt.show()
