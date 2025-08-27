@@ -39,6 +39,7 @@ class FactorGraph:
         self.num_priors = 0
         self.is_tree = False
         self.is_grid = False
+        self.grid_cols = None
         self.closest_prior = None
 
     def add_variable(self, variable_name, belief_discretisation):
@@ -74,28 +75,38 @@ class FactorGraph:
 
 
 ''' functions '''
+### helper functions
+
+
+
+
+
 #TODO: you shouldn't need belief_discretisation here
 def add_variables_to_graph(graph, num_variables, belief_discretisation):
     # Add variable nodes
     for i in range(num_variables):
         graph.add_variable(f'X{i + 1}', belief_discretisation)
 
+def add_leaf_priors_to_graph(graph, measurement_range):
+    for variable in graph.variables:
+        if len(variable.neighbors) == 1:
+            random_prior_function = dm.create_random_prior_distribution(measurement_range)
+            graph.add_factor([variable], random_prior_function, factor_type='prior')
+
 def add_priors_to_graph(graph, num_priors, measurement_range, prior_location):
-    # Add prior factors
     # if it's a tree and you want priors on the leaf nodes
     if (graph.is_tree and prior_location == 'leaf'):
-        for variable in graph.variables:
-            if len(variable.neighbors) == 1:
-                random_prior_function = dm.create_random_prior_distribution(measurement_range)
-                graph.add_factor([variable], random_prior_function, factor_type='prior')
-    # Otherwise if it's loopy or a tree with a root prior
-    elif prior_location == 'root' or prior_location == 'random':
+        add_leaf_priors_to_graph(graph, measurement_range)
+
+    # if it's a tree and you want a prior on the root node
+    elif isinstance(prior_location, str) and (prior_location == 'root' or prior_location == 'random'):
         # add a random prior to all leaf nodes
         for i in range(num_priors):
             random_prior_function = dm.create_random_prior_distribution(measurement_range)
             graph.add_factor([graph.variables[i*int((len(graph.variables)/num_priors))]], random_prior_function, factor_type='prior')
             graph.num_priors += 1
-    elif prior_location == 'top':
+    
+    elif isinstance(prior_location, str) and prior_location == 'top':
         i = 0
         for var in graph.variables:
             if i < num_priors:
@@ -105,7 +116,8 @@ def add_priors_to_graph(graph, num_priors, measurement_range, prior_location):
                 i+=1
             else:
                 break
-    elif prior_location == 'edges':
+   
+    elif isinstance(prior_location, str) and prior_location == 'corners':
         # add priors to the top left corner
         var_cols = int(np.ceil(np.sqrt(len(graph.variables))))
         top_priors = num_priors//2 + num_priors%2
@@ -120,6 +132,15 @@ def add_priors_to_graph(graph, num_priors, measurement_range, prior_location):
         for i in range(bottom_priors):
             prior_function = dm.create_random_prior_distribution(measurement_range)
             graph.add_factor([graph.variables[-1-i-(i//bottom_prior_cols)*(var_cols-bottom_prior_cols)]], prior_function, factor_type='prior')
+    
+    elif isinstance(prior_location, np.ndarray):
+        flat_prior_locations = prior_location.flatten() # Flatten the 2D array to 1D
+        flat_depth_map = cfg.depth_map_meters.flatten()
+        for i, variable in enumerate(graph.variables):
+            if flat_prior_locations[i]:
+                prior_function = dm.create_random_prior_distribution(cfg.measurement_range, mean=flat_depth_map[i], prior_width=32)
+                graph.add_factor([variable], prior_function, factor_type='prior')
+                graph.num_priors += 1
 
 
 
@@ -177,9 +198,13 @@ def add_tree_pairwise_factors(graph, branching_factor, branching_probability):
                 graph.add_factor([parent, child], function=pairwise_function)
                 queue.append(child)
 
-def add_grid_pairwise_factors(graph):
+def add_grid_pairwise_factors(graph, num_cols=None):
     num_variables = len(graph.variables)
-    grid_cols = int(np.ceil(np.sqrt(num_variables)))  # Assuming a square grid for simplicity
+    
+    if num_cols is None:
+        grid_cols = int(np.ceil(np.sqrt(num_variables)))    
+    graph.grid_cols = grid_cols
+
     belief_discretisation = len(graph.variables[0].belief)
     i=0
     for i in range(num_variables):
@@ -207,6 +232,9 @@ def add_grid_pairwise_factors(graph):
         # Connect to variables to the right of the current one (if it's correct). 
         if right_var and (i+1)%grid_cols!=0: 
             graph.add_factor([current_var, right_var], pairwise_function_2)
+        if i % 100 == 0:
+            precentage_processed = int((i/num_variables)*100)
+            print(f"{precentage_processed}% of variable pairwise factors added.")
             
     
 
@@ -220,15 +248,17 @@ def add_pairwise_factors_to_graph(graph, num_loops, measurement_range, branching
 
 
 #TODO: make the number of arguments being passed here more efficient
-def build_factor_graph(num_variables, num_priors, num_loops, graph_type, measurement_range, branching_factor, branching_probability, prior_location):
+def build_factor_graph(num_variables, num_priors, num_loops, graph_type, measurement_range, prior_location, branching_factor=2, branching_probability=1.0):
     # Create a factor graph
     graph = FactorGraph()
     belief_discretisation = len(measurement_range)
     if graph_type == 'Tree': graph.is_tree = True
     elif graph_type == 'Grid': graph.is_grid =  True
-
+    print("Adding variables to graph...")
     add_variables_to_graph(graph, num_variables, belief_discretisation)
+    print(f"{len(graph.variables)} variables added. Adding pairwise factors to graph...")
     add_pairwise_factors_to_graph(graph, num_loops, measurement_range, branching_factor, branching_probability)
+    print("Pairwise factors added. Adding priors to graph...")
     add_priors_to_graph(graph, num_priors, measurement_range, prior_location)
-
+    print("Priors added.")
     return graph

@@ -43,17 +43,29 @@ def create_gaussian_distribution(x, sigma, mu=0):
 
 
 # creates a random discrete distribution for the variable priors
-def create_random_prior_distribution(x_range, prior_width=None):
+def create_random_prior_distribution(x_range, mean=None, prior_width=None):
     if prior_width is None:
         prior_width = cfg.prior_width
-
-    discretisation = len(x_range)
+    x = np.asarray(x_range)
+    discretisation = x.size
+    if mean is None:
+        centre_idx = discretisation // 2
+    elif isinstance(mean, (int, np.integer)):
+        centre_idx = int(mean)
+    else:
+        # map measurement value to nearest discretisation index
+        centre_idx = int(np.argmin(np.abs(x - float(mean))))
+    
+    centre_idx = max(0, min(discretisation-1, centre_idx)) # clamp to valid range
+    half_width = prior_width // 2
+    start = max(0, centre_idx-half_width)
+    end = min(discretisation, centre_idx+half_width)
+    
+    
     unnormalised_prior = np.zeros(discretisation)
-    # unnormalised_prior[discretisation//4:3*discretisation//4] = cfg.rng.random(discretisation//2)
-    start = max(0, discretisation//2-prior_width//2)
-    end = min(discretisation, discretisation//2+prior_width//2)
-    unnormalised_prior[start:end] = np.ones(prior_width)
-    # unnormalised_prior[start:end] = cfg.rng.random(prior_width)
+    unnormalised_prior[start:end] = cfg.rng.random(end-start)    
+    # DEBUGGING
+    # unnormalised_prior[start:end] = np.ones(prior_width)
     return normalise(unnormalised_prior)
 
 
@@ -62,21 +74,28 @@ def create_smoothing_factor_distribution(discretisation, kernel=None, mrange=cfg
     if kernel is None:
         if mrange is None:
             raise ValueError("measurement_range required (pass it or set config.measurement_range).")
-        kernel = create_random_prior_distribution(mrange, cfg.smoothing_width)
+        kernel = create_random_prior_distribution(mrange, mean=None, prior_width=cfg.smoothing_width*2)
     
-    # kernel = downsample_variance(kernel, target_width=cfg.smoothing_width)  # Adjust kernel width to be 3/4 of the belief range
+    # TESTING
+    kernel = np.asarray(kernel)
+    extended_len = 2*discretisation-1
+    extended_kernel = np.zeros(extended_len)
 
-    # Now build the pairwise factor matrix: center index corresponds to diff == 0
-    center = (len(kernel)-1) // 2
+    # Place original kernel in the center of the extended kernel
+    start_idx = (extended_len-len(kernel)) // 2
+    extended_kernel[start_idx:start_idx+len(kernel)] = kernel
+
+    # Create pairwise factor matrix
     unnormalised_factor_values = np.zeros((discretisation, discretisation))
-    
+
+    center = 3*(discretisation - 1)//4
     # Fill in the factor matrix constraining variables to be similar
     for x1_rows in range(discretisation):
         for x2_cols in range(discretisation):
             diff = x2_cols-x1_rows
             idx = diff + center
             if 0 <= idx < discretisation:
-                unnormalised_factor_values[x1_rows, x2_cols] = kernel[-idx]
+                unnormalised_factor_values[x1_rows, x2_cols] = extended_kernel[idx]
     return normalise(unnormalised_factor_values)
 
 

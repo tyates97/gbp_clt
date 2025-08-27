@@ -12,11 +12,13 @@ def run_belief_propagation(graph, num_iterations, bp_pass_direction='Forward pas
     '''
 
     ### STEP 0: Initialise all messages & beliefs (start with uniform messages)
+    print("Initialising all messages as uniform distributions...")
     messages = {}
     discretisation = len(graph.variables[0].belief)
 
     for variable in graph.variables:
-        for factor in graph.factors:
+        for factor in variable.neighbors:           # test if we can initialise the graph much quicker.
+        # for factor in graph.factors:
             messages[(factor, variable)] = dm.normalise(np.ones(discretisation))
             messages[(variable, factor)] = dm.normalise(np.ones(discretisation))
 
@@ -88,6 +90,7 @@ def run_belief_propagation(graph, num_iterations, bp_pass_direction='Forward pas
             messages[(factor, factor.neighbors[0])] = factor.function
 
     ### STEP 0.1 - TREE GRAPHS: If the graph is a tree or a chain, run forward and backward passes
+    print("All messages initialised. Iterating loopy belief propagation...")
     if graph.is_tree or (graph.num_loops == 0 and graph.num_priors == 1):
         root = graph.variables[0]
         
@@ -155,6 +158,8 @@ def run_belief_propagation(graph, num_iterations, bp_pass_direction='Forward pas
                              msg_to_var[id_state_target_var] = np.sum(factor.function[:, id_state_target_var] * incoming_from_other_var)
 
                     messages[(factor, neighbor)] = dm.normalise(msg_to_var)
+
+            print(f"Belief propagation iteration {iteration+1}/{num_iterations} complete.")
 
             # STEP 3: Update beliefs for all variables
             for variable in graph.variables:

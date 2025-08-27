@@ -16,16 +16,16 @@ st.title("Interactive Factor Graph Belief Propagation")
 # Sidebar controls
 st.sidebar.title("Controls")
 st.sidebar.subheader("Factor Graph Configuration")
-cfg.num_variables = st.sidebar.slider("Number of Variables", 2, 200, 15)
-cfg.graph_type = st.sidebar.selectbox("Graph Type",['Loopy', 'Tree', 'Grid'])
+cfg.num_variables = st.sidebar.slider("Number of Variables", 2, 200, 100)
+cfg.graph_type = st.sidebar.selectbox("Graph Type",['Grid', 'Tree', 'Loopy'])
 cfg.show_comparison = st.sidebar.checkbox("Show Gaussian best fit", value=True)
 if cfg.graph_type == 'Tree':
     cfg.prior_location = st.sidebar.selectbox("Prior Location", ['root', 'leaf'])
 elif cfg.graph_type == 'Grid':
-    cfg.prior_location = st.sidebar.selectbox("Prior Location", ['top', 'edges', 'random'])
+    cfg.prior_location = st.sidebar.selectbox("Prior Location", ['corners', 'top', 'random'])
 else:
     cfg.prior_location = 'root'
-cfg.num_priors = st.sidebar.slider("Number of Priors", 1, cfg.num_variables, 1)
+cfg.num_priors = st.sidebar.slider("Number of Priors", 1, cfg.num_variables, 30)
 
 # Loopy Graphs submenu
 if cfg.graph_type == 'Loopy':
@@ -58,9 +58,9 @@ graph = build_factor_graph(
     cfg.num_loops,
     cfg.graph_type,
     cfg.measurement_range,
+    cfg.prior_location,
     cfg.branching_factor,
     cfg.branching_probability,
-    cfg.prior_location
 )
 graph = run_belief_propagation(graph, cfg.num_iterations, cfg.bp_pass_direction)
 
