@@ -39,6 +39,7 @@ random_seed = 42
 rng = np.random.default_rng(seed=42)
 
 # Real Data
-image = None
+left_image = None
+right_image = None
 depth_map_raw = None
 depth_map_meters = None

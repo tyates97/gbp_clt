@@ -243,4 +243,37 @@ def plot_results(graph, max_subplots, measurement_range, show_comparison=True, s
         plot_heatmap(fig, gs, graph, measurement_range)
     else:
         plot_factor_graph(fig, gs, graph)
-    return fig              
+    return fig
+
+
+
+''' Plot overlaid pdf distributions '''
+def plot_pdf_volume(pdf_volume, num_curves):
+    
+    print(f"Plotting {num_curves} PDFs...")
+    # Get the dimensions of the pdf_volume
+    height, width, max_disparity = pdf_volume.shape
+
+    # Define a step size to select approximately your number of distributions
+    step_y = int(height / int(np.sqrt(num_curves)))  
+    step_x = int(width / int(np.sqrt(num_curves)))   
+
+    # Create a new figure for the plot
+    plt.figure(figsize=(12, 8))
+    plt.title('100 Evenly-Spaced Disparity Probability Distributions')
+    plt.xlabel('Disparity')
+    plt.ylabel('Probability')
+    plt.grid(True, linestyle='--', alpha=0.6)
+
+    # Iterate through the pdf_volume with the defined step sizes
+    # This selects approximately 100 points
+    for y in range(0, height, step_y):
+        for x in range(0, width, step_x):
+            # Extract the probability distribution for the current pixel
+            pdf = pdf_volume[y, x, :]
+            
+            # Plot the distribution
+            plt.plot(range(max_disparity), pdf, alpha=0.5)
+
+    # Show the plot
+    plt.show()
