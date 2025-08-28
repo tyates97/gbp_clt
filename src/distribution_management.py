@@ -1,6 +1,7 @@
 
 # External Libraries
 import numpy as np
+import numba
 
  # Internal modules
 import config as cfg
@@ -8,11 +9,12 @@ import config as cfg
 cfg.rng = np.random.default_rng(seed=42)
 
 # normalises a set of distribution values so their sum adds to 1
+@numba.jit(nopython=True)
 def normalise(distribution_values):
     sum_value = np.sum(distribution_values)
     if sum_value > 0:
         normalised_values = distribution_values / sum_value
-        return np.clip(normalised_values, 1e-10, 1e10)  # Clamp values to avoid extreme ranges
+        return normalised_values
 
     else:
         # Return uniform distribution instead
@@ -42,6 +44,7 @@ def create_gaussian_distribution(x, sigma, mu=0):
     return normalise(coef * np.exp(exponent))
 
 
+@numba.jit(nopython=True)
 # creates a random discrete distribution for the variable priors
 def create_random_prior_distribution(x_range, mean=None, prior_width=None):
     if prior_width is None:
@@ -63,12 +66,11 @@ def create_random_prior_distribution(x_range, mean=None, prior_width=None):
     
     
     unnormalised_prior = np.zeros(discretisation)
-    unnormalised_prior[start:end] = cfg.rng.random(end-start)    
-    # DEBUGGING
-    # unnormalised_prior[start:end] = np.ones(prior_width)
+    unnormalised_prior[start:end] = np.random.rand(end-start)    
     return normalise(unnormalised_prior)
 
 
+@numba.jit(nopython=True)
 # creates a smoothing factor that encourages neighbouring variables to have the same factor
 def create_smoothing_factor_distribution(discretisation, kernel=None, mrange=cfg.measurement_range):
     if kernel is None:

@@ -4,6 +4,7 @@ factor_graph.py
 # External libraries
 import networkx as nx
 import numpy as np
+import numba
 
 # Local modules
 import distribution_management as dm
@@ -49,9 +50,9 @@ class FactorGraph:
         return variable_node
 
     def add_factor(self, variable_list, function, factor_type='smoothing'):
-        # Check for duplicate factors
-        if self.factor_exists(variable_list):
-            return None
+        # # Check for duplicate factors # now redundant with calculate grid connections function
+        # if self.factor_exists(variable_list):
+        #     return None
         # Create a unique factor name based on the variable names
         factor_name = 'f'+'_'.join(variable.name for variable in variable_list)
         factor_node = FactorNode(factor_name, function, factor_type)
@@ -72,193 +73,256 @@ class FactorGraph:
             if set(n.name for n in factor.neighbors) == variable_names:
                 return True
         return False
+    
+        #TODO: you shouldn't need belief_discretisation here
+    def add_variables(self, num_variables, belief_discretisation):
+        print("Adding variables to graph...")
+        # Add variable nodes
+        for i in range(num_variables):
+            self.add_variable(f'X{i + 1}', belief_discretisation)
+
+    def add_leaf_priors(self, measurement_range):
+        for variable in self.variables:
+            if len(variable.neighbors) == 1:
+                random_prior_function = dm.create_random_prior_distribution(measurement_range)
+                self.add_factor([variable], random_prior_function, factor_type='prior')
+
+    def add_priors(self, num_priors, measurement_range, prior_location):
+        print("Adding prior factors to graph...")
+        # if it's a tree and you want priors on the leaf nodes
+        if (self.is_tree and prior_location == 'leaf'):
+            self.add_leaf_priors(measurement_range)
+
+        # if it's a tree and you want a prior on the root node
+        elif isinstance(prior_location, str) and (prior_location == 'root' or prior_location == 'random'):
+            # add a random prior to all leaf nodes
+            for i in range(num_priors):
+                random_prior_function = dm.create_random_prior_distribution(measurement_range)
+                self.add_factor([self.variables[i*int((len(self.variables)/num_priors))]], random_prior_function, factor_type='prior')
+                self.num_priors += 1
+        
+        elif isinstance(prior_location, str) and prior_location == 'top':
+            i = 0
+            for var in self.variables:
+                if i < num_priors:
+                    random_prior_function = dm.create_random_prior_distribution(measurement_range)
+                    self.add_factor([var], random_prior_function, factor_type='prior')
+                    self.num_priors += 1
+                    i+=1
+                else:
+                    break
+    
+        elif isinstance(prior_location, str) and prior_location == 'corners':
+            # add priors to the top left corner
+            var_cols = int(np.ceil(np.sqrt(len(self.variables))))
+            top_priors = num_priors//2 + num_priors%2
+            top_prior_cols = int(np.ceil(np.sqrt(top_priors)))
+            for i in range(top_priors):
+                prior_function = dm.create_random_prior_distribution(measurement_range)
+                self.add_factor([self.variables[i+i//top_prior_cols*(var_cols-top_prior_cols)]], prior_function, factor_type='prior')
+
+            # add priors to the bottom right corner
+            bottom_priors = num_priors//2
+            bottom_prior_cols = int(np.ceil(np.sqrt(bottom_priors)))
+            for i in range(bottom_priors):
+                prior_function = dm.create_random_prior_distribution(measurement_range)
+                self.add_factor([self.variables[-1-i-(i//bottom_prior_cols)*(var_cols-bottom_prior_cols)]], prior_function, factor_type='prior')
+        
+        elif isinstance(prior_location, np.ndarray):
+            flat_prior_locations = prior_location.flatten() # Flatten the 2D array to 1D
+            flat_depth_map = cfg.depth_map_meters.flatten()
+            for i, variable in enumerate(self.variables):
+                if flat_prior_locations[i]:
+                    prior_function = dm.create_random_prior_distribution(cfg.measurement_range, mean=flat_depth_map[i], prior_width=32)
+                    self.add_factor([variable], prior_function, factor_type='prior')
+                    self.num_priors += 1
+
+    def add_priors_from_pdf(self, pdf_volume):
+        height, width, _ = pdf_volume.shape
+        flat_pdf = pdf_volume.reshape(-1, pdf_volume.shape[2])
+
+        for i, variable in enumerate(self.variables):
+            prior_function = flat_pdf[i]
+            self.add_factor([variable], prior_function, factor_type="prior")
+            self.num_priors += 1
+
+        # for y_pos in pdf_volume.shape[0]:
+        #     for x_pos in pdf_volume.shape[1]:
+        #         graph_idx = (y_pos-1)*num_cols+x_pos
+        #         prior_function = pdf_volume[y_pos][x_pos][:]
+        #         self.add_factor([self.variables[graph_idx]], prior_function, factor_type='prior')
+
+        return self
+
+
+    def add_loopy_pairwise_factors(self, num_loops, measurement_range):
+        num_variables = len(self.variables)
+        belief_discretisation = len(self.variables[0].belief)
+        pairwise_function = dm.create_smoothing_factor_distribution(belief_discretisation)
+        for i in range(num_variables):
+            # add factors between adjacent variables
+            pairwise_function = dm.create_smoothing_factor_distribution(belief_discretisation)
+            
+            # if it's a chain, connect all the variables in a line
+            if i < num_variables - 1:
+                self.add_factor([self.variables[i], self.variables[i + 1]], function=pairwise_function)
+
+            # if it's loopy, connect the last variable to the first
+            if num_loops > 0: 
+                if i == num_variables - 1:
+                    self.add_factor([self.variables[i], self.variables[0]],function=pairwise_function)
+                    self.num_loops+=1
+
+                # if there's more loops than 1, evenly space them around the outer loop
+        for i in range(1, num_loops):
+            self.add_factor([self.variables[int(i*num_variables/(2*num_loops))],
+                            self.variables[int(num_variables-((i*num_variables)/(2*num_loops)))]],
+                            function=pairwise_function
+                            )
+            self.num_loops += 1
+
+    def add_tree_pairwise_factors(self, branching_factor, branching_probability):
+        variables = self.variables
+        num_variables = len(variables)
+        belief_discretisation = len(variables[0].belief)
+        queue = [variables[0]]
+        next_var_idx = 1
+
+        while queue and next_var_idx < num_variables:
+            layer_size = len(queue)
+            for i in range(layer_size):
+                parent = queue.pop(0)
+                # Decide if this parent should branch
+                should_branch = (dm.rng.random() < branching_probability) or (i == layer_size - 1 and next_var_idx < num_variables)
+                num_children = branching_factor if should_branch else 0
+                # If this is the last parent in the layer and there are still variables left, force at least one child
+                if i == layer_size - 1 and next_var_idx < num_variables and num_children == 0:
+                    num_children = 1
+                for _ in range(num_children):
+                    if next_var_idx >= num_variables:
+                        break
+                    child = variables[next_var_idx]
+                    next_var_idx += 1
+                    pairwise_function = dm.create_smoothing_factor_distribution(
+                        belief_discretisation, prior=dm.create_random_prior_distribution(child.belief)
+                    )
+                    self.add_factor([parent, child], function=pairwise_function)
+                    queue.append(child)
+
+    @staticmethod               # to prevent needing to pass "self" to the function, which it doesn't need
+    @numba.jit(nopython=True)   # to speed up the compiler
+    def _calculate_grid_connections(num_variables, grid_cols):
+        """
+        Calculates pairwise connections for a grid graph.
+        This function is JIT-compiled with Numba for high performance.
+        It only uses primitive types and NumPy arrays.
+        """
+        # Pre-allocate a NumPy array to store connections. This is much faster
+        # than appending to a Python list inside a Numba loop.
+        # The maximum number of connections is roughly 2 * num_variables.
+        max_connections = 2 * num_variables
+        connections_array = np.empty((max_connections, 2), dtype=np.int64)
+        count = 0
+        print("Calculating pairwise grid connections...")
+
+        for i in range(num_variables):
+            # Connection to the right neighbor
+            # Check we are not in the last column and not at the last variable
+            if (i + 1) % grid_cols != 0 and (i + 1) < num_variables:
+                connections_array[count, 0] = i
+                connections_array[count, 1] = i + 1
+                count += 1
+            
+            # Connection to the neighbor below
+            if i + grid_cols < num_variables:
+                connections_array[count, 0] = i
+                connections_array[count, 1] = i + grid_cols
+                count += 1
+                
+        # Return a slice of the array containing only the actual connections
+        return connections_array[:count]
+
+
+    def add_grid_pairwise_factors(self, num_cols=None):
+        """
+        Adds pairwise factors to a grid graph. This function orchestrates the process:
+        1. Calls a fast, JIT-compiled helper to calculate connection indices.
+        2. Loops through the connections in plain Python to create factor objects.
+        """
+        num_variables = len(self.variables)
+        
+        if num_cols is None:
+            grid_cols = int(np.ceil(np.sqrt(num_variables)))
+        else:
+            grid_cols = num_cols # Use the provided number of columns
+            
+        self.grid_cols = grid_cols
+
+        belief_discretisation = len(self.variables[0].belief)
+
+        # 1. Call the fast helper function to get the numerical connection plan
+        connections = self._calculate_grid_connections(num_variables, grid_cols)
+
+        print("Creating pairwise factors...")
+        # 2. Iterate through the connection plan and create the actual factor objects
+        for i, j in connections:
+            var1 = self.variables[i]
+            var2 = self.variables[j]
+            
+            # Create a new smoothing function for each factor
+            pairwise_function = dm.create_smoothing_factor_distribution(belief_discretisation)
+            
+            self.add_factor([var1, var2], pairwise_function)
+
+            
+            if len(self.factors) % 34000 == 0:
+                percentage_processed = int((len(self.factors)/len(connections))*100)    
+                print(f"{percentage_processed}% of variable pairwise factors added.")
+
+        print("All pairwise factors added.")
+                
+        
+
+    def add_pairwise_factors(self, num_loops, measurement_range, branching_factor, branching_probability):
+        if self.is_tree:            
+            self.add_tree_pairwise_factors(branching_factor, branching_probability)
+        elif self.is_grid:
+            self.add_grid_pairwise_factors()
+        else:
+            self.add_loopy_pairwise_factors(num_loops, measurement_range)
+
+
+
+
+
+
+
+
 
 
 ''' functions '''
-### helper functions
-
-
-
-
-
-#TODO: you shouldn't need belief_discretisation here
-def add_variables_to_graph(graph, num_variables, belief_discretisation):
-    # Add variable nodes
-    for i in range(num_variables):
-        graph.add_variable(f'X{i + 1}', belief_discretisation)
-
-def add_leaf_priors_to_graph(graph, measurement_range):
-    for variable in graph.variables:
-        if len(variable.neighbors) == 1:
-            random_prior_function = dm.create_random_prior_distribution(measurement_range)
-            graph.add_factor([variable], random_prior_function, factor_type='prior')
-
-def add_priors_to_graph(graph, num_priors, measurement_range, prior_location):
-    # if it's a tree and you want priors on the leaf nodes
-    if (graph.is_tree and prior_location == 'leaf'):
-        add_leaf_priors_to_graph(graph, measurement_range)
-
-    # if it's a tree and you want a prior on the root node
-    elif isinstance(prior_location, str) and (prior_location == 'root' or prior_location == 'random'):
-        # add a random prior to all leaf nodes
-        for i in range(num_priors):
-            random_prior_function = dm.create_random_prior_distribution(measurement_range)
-            graph.add_factor([graph.variables[i*int((len(graph.variables)/num_priors))]], random_prior_function, factor_type='prior')
-            graph.num_priors += 1
-    
-    elif isinstance(prior_location, str) and prior_location == 'top':
-        i = 0
-        for var in graph.variables:
-            if i < num_priors:
-                random_prior_function = dm.create_random_prior_distribution(measurement_range)
-                graph.add_factor([var], random_prior_function, factor_type='prior')
-                graph.num_priors += 1
-                i+=1
-            else:
-                break
-   
-    elif isinstance(prior_location, str) and prior_location == 'corners':
-        # add priors to the top left corner
-        var_cols = int(np.ceil(np.sqrt(len(graph.variables))))
-        top_priors = num_priors//2 + num_priors%2
-        top_prior_cols = int(np.ceil(np.sqrt(top_priors)))
-        for i in range(top_priors):
-            prior_function = dm.create_random_prior_distribution(measurement_range)
-            graph.add_factor([graph.variables[i+i//top_prior_cols*(var_cols-top_prior_cols)]], prior_function, factor_type='prior')
-
-        # add priors to the bottom right corner
-        bottom_priors = num_priors//2
-        bottom_prior_cols = int(np.ceil(np.sqrt(bottom_priors)))
-        for i in range(bottom_priors):
-            prior_function = dm.create_random_prior_distribution(measurement_range)
-            graph.add_factor([graph.variables[-1-i-(i//bottom_prior_cols)*(var_cols-bottom_prior_cols)]], prior_function, factor_type='prior')
-    
-    elif isinstance(prior_location, np.ndarray):
-        flat_prior_locations = prior_location.flatten() # Flatten the 2D array to 1D
-        flat_depth_map = cfg.depth_map_meters.flatten()
-        for i, variable in enumerate(graph.variables):
-            if flat_prior_locations[i]:
-                prior_function = dm.create_random_prior_distribution(cfg.measurement_range, mean=flat_depth_map[i], prior_width=32)
-                graph.add_factor([variable], prior_function, factor_type='prior')
-                graph.num_priors += 1
-
-
-
-def add_loopy_pairwise_factors(graph, num_loops, measurement_range):
-    num_variables = len(graph.variables)
-    belief_discretisation = len(graph.variables[0].belief)
-    pairwise_function = dm.create_smoothing_factor_distribution(belief_discretisation)
-    for i in range(num_variables):
-        # add factors between adjacent variables
-        pairwise_function = dm.create_smoothing_factor_distribution(belief_discretisation)
-        
-        # if it's a chain, connect all the variables in a line
-        if i < num_variables - 1:
-            graph.add_factor([graph.variables[i], graph.variables[i + 1]], function=pairwise_function)
-
-        # if it's loopy, connect the last variable to the first
-        if num_loops > 0: 
-            if i == num_variables - 1:
-                graph.add_factor([graph.variables[i], graph.variables[0]],function=pairwise_function)
-                graph.num_loops+=1
-
-            # if there's more loops than 1, evenly space them around the outer loop
-    for i in range(1, num_loops):
-        graph.add_factor([graph.variables[int(i*num_variables/(2*num_loops))],
-                        graph.variables[int(num_variables-((i*num_variables)/(2*num_loops)))]],
-                        function=pairwise_function
-                        )
-        graph.num_loops += 1
-
-def add_tree_pairwise_factors(graph, branching_factor, branching_probability):
-    variables = graph.variables
-    num_variables = len(variables)
-    belief_discretisation = len(variables[0].belief)
-    queue = [variables[0]]
-    next_var_idx = 1
-
-    while queue and next_var_idx < num_variables:
-        layer_size = len(queue)
-        for i in range(layer_size):
-            parent = queue.pop(0)
-            # Decide if this parent should branch
-            should_branch = (dm.rng.random() < branching_probability) or (i == layer_size - 1 and next_var_idx < num_variables)
-            num_children = branching_factor if should_branch else 0
-            # If this is the last parent in the layer and there are still variables left, force at least one child
-            if i == layer_size - 1 and next_var_idx < num_variables and num_children == 0:
-                num_children = 1
-            for _ in range(num_children):
-                if next_var_idx >= num_variables:
-                    break
-                child = variables[next_var_idx]
-                next_var_idx += 1
-                pairwise_function = dm.create_smoothing_factor_distribution(
-                    belief_discretisation, prior=dm.create_random_prior_distribution(child.belief)
-                )
-                graph.add_factor([parent, child], function=pairwise_function)
-                queue.append(child)
-
-def add_grid_pairwise_factors(graph, num_cols=None):
-    num_variables = len(graph.variables)
-    
-    if num_cols is None:
-        grid_cols = int(np.ceil(np.sqrt(num_variables)))    
-    graph.grid_cols = grid_cols
-
-    belief_discretisation = len(graph.variables[0].belief)
-    i=0
-    for i in range(num_variables):
-        current_var = graph.variables[i]
-        below_var = None
-        right_var = None
-        # determine variable to the right of the current one, if it exists
-        if i+1 < num_variables: 
-            right_var = graph.variables[i+1]
-        # determine variable below the current one, if it exists
-        if i+grid_cols < num_variables: 
-            below_var = graph.variables[i+grid_cols]
-        # create a pairwise factor function for the right and below variables
-        pairwise_function_1 = dm.create_smoothing_factor_distribution(
-            belief_discretisation
-        )
-        pairwise_function_2 = dm.create_smoothing_factor_distribution(
-            belief_discretisation
-        )
-        
-        # Connect to variable below the current one (if it's correct).
-        if below_var:
-            graph.add_factor([current_var, below_var], pairwise_function_1)
-        
-        # Connect to variables to the right of the current one (if it's correct). 
-        if right_var and (i+1)%grid_cols!=0: 
-            graph.add_factor([current_var, right_var], pairwise_function_2)
-        if i % 100 == 0:
-            precentage_processed = int((i/num_variables)*100)
-            print(f"{precentage_processed}% of variable pairwise factors added.")
-            
-    
-
-def add_pairwise_factors_to_graph(graph, num_loops, measurement_range, branching_factor, branching_probability):
-    if graph.is_tree:            
-        add_tree_pairwise_factors(graph, branching_factor, branching_probability)
-    elif graph.is_grid:
-        add_grid_pairwise_factors(graph)
-    else:
-        add_loopy_pairwise_factors(graph, num_loops, measurement_range)
-
 
 #TODO: make the number of arguments being passed here more efficient
 def build_factor_graph(num_variables, num_priors, num_loops, graph_type, measurement_range, prior_location, branching_factor=2, branching_probability=1.0):
+    print("Building factor graph...")
     # Create a factor graph
     graph = FactorGraph()
     belief_discretisation = len(measurement_range)
     if graph_type == 'Tree': graph.is_tree = True
     elif graph_type == 'Grid': graph.is_grid =  True
-    print("Adding variables to graph...")
-    add_variables_to_graph(graph, num_variables, belief_discretisation)
-    print(f"{len(graph.variables)} variables added. Adding pairwise factors to graph...")
-    add_pairwise_factors_to_graph(graph, num_loops, measurement_range, branching_factor, branching_probability)
-    print("Pairwise factors added. Adding priors to graph...")
-    add_priors_to_graph(graph, num_priors, measurement_range, prior_location)
-    print("Priors added.")
+    graph.add_variables(num_variables, belief_discretisation)
+    graph.add_pairwise_factors(num_loops, measurement_range, branching_factor, branching_probability)
+    graph.add_priors(num_priors, measurement_range, prior_location)
+    return graph
+
+def get_graph_from_pdf(pdf_volume):
+    print("Building factor graph from PDF volume...")
+    graph = FactorGraph()
+    num_variables = pdf_volume.shape[0]*pdf_volume.shape[1]
+    graph.is_grid = True
+
+    graph.add_variables(num_variables, belief_discretisation=pdf_volume.shape[2])
+    graph.add_pairwise_factors(0, cfg.measurement_range, 1, 1)
+    graph.add_priors_from_pdf(pdf_volume)
+
     return graph

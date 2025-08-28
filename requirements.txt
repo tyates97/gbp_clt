@@ -3,5 +3,5 @@ matplotlib
 scikit-learn
 networkx
 streamlit
-collections
+numba
 opencv-python
