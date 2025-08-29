@@ -75,11 +75,15 @@ def create_random_prior_distribution(x_range, mean=None, prior_width=None):
 @numba.jit(nopython=True)
 # creates a smoothing factor that encourages neighbouring variables to have the same factor
 def create_smoothing_factor_distribution(discretisation, kernel=None, mrange=cfg.measurement_range):
-    if kernel is None:
-        if mrange is None:
-            raise ValueError("measurement_range required (pass it or set config.measurement_range).")
-        kernel = create_random_prior_distribution(mrange, mean=None, prior_width=cfg.smoothing_width)
+    # if kernel is None:
+    #     if mrange is None:
+    #         raise ValueError("measurement_range required (pass it or set config.measurement_range).")
+    #     kernel = create_random_prior_distribution(mrange, mean=None, prior_width=cfg.smoothing_width)
     
+    # Create triangular kernel favoring small disparity differences
+    x = np.linspace(-cfg.smoothing_width/2, cfg.smoothing_width/2, cfg.smoothing_width)
+    kernel = np.maximum(0, 1 - np.abs(x)/(cfg.smoothing_width/4))
+
     kernel = np.asarray(kernel)
     extended_len = 2*discretisation-1
     extended_kernel = np.zeros(extended_len)
@@ -88,7 +92,7 @@ def create_smoothing_factor_distribution(discretisation, kernel=None, mrange=cfg
     start_idx = (extended_len-len(kernel)) // 2
     extended_kernel[start_idx:start_idx+len(kernel)] = kernel
 
-    ### Show extended_kernel
+    # ## Show extended_kernel
     # plt.plot(range(2*cfg.belief_discretisation-1), extended_kernel)
     # plt.show()
 

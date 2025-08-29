@@ -53,6 +53,9 @@ cfg.max_measurement = max_disparity
 cfg.belief_discretisation = max_disparity
 cfg.measurement_range = np.linspace(cfg.min_measurement, cfg.max_measurement-1, cfg.belief_discretisation)
 
+## DEBUGGING: visualise smoothing factors
+# dm.create_smoothing_factor_distribution(cfg.belief_discretisation)
+
 graph = fg.get_graph_from_pdf(pdf_volume)
 
 # Run Belief Propagation on graph
