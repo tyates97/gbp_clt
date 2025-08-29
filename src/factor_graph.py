@@ -138,6 +138,7 @@ class FactorGraph:
                     self.num_priors += 1
 
     def add_priors_from_pdf(self, pdf_volume):
+        print("Adding prior factors...")
         height, width, _ = pdf_volume.shape
         flat_pdf = pdf_volume.reshape(-1, pdf_volume.shape[2])
 

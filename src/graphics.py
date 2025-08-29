@@ -277,3 +277,31 @@ def plot_pdf_volume(pdf_volume, num_curves):
 
     # Show the plot
     plt.show()
+
+
+def plot_graph_beliefs(graph, num_curves, max_disparity):
+    
+    print(f"Plotting {num_curves} PDFs...")
+    num_variables = len(graph.variables)
+    
+    # Define a step size to select approximately your number of distributions
+    step = num_variables//num_curves
+
+    # Create a new figure for the plot
+    plt.figure(figsize=(12, 8))
+    plt.title('100 Evenly-Spaced Disparity Probability Distributions')
+    plt.xlabel('Disparity')
+    plt.ylabel('Probability')
+    plt.grid(True, linestyle='--', alpha=0.6)
+
+    # Iterate through the pdf_volume with the defined step sizes
+    # This selects approximately 100 points
+    for i, variable in enumerate(graph.variables):
+        if i % step == 0:
+            belief = variable.belief
+            
+            # Plot the distribution
+            plt.plot(range(max_disparity), belief, alpha=0.5) 
+
+    # Show the plot
+    plt.show()
