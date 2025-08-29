@@ -2,12 +2,40 @@
 # External libraries
 import numpy as np
 import networkx as nx
-from sklearn.metrics import mean_squared_error
+import numba
+# from sklearn.metrics import mean_squared_error
 
 # Local modules
 import distribution_management as dm
+import config as cfg
 
-''' function to optimise the q and sigma parameters of a q-gaussian to fit a target belief '''
+
+# normalises a set of distribution values so their sum adds to 1
+@numba.jit(nopython=True)
+def normalise(distribution_values):
+    sum_value = np.sum(distribution_values)
+    if sum_value > 0:
+        normalised_values = distribution_values / sum_value
+        return normalised_values
+
+# creates a gaussian distribution
+@numba.jit(nopython=True)
+def create_gaussian_distribution(x, sigma, mu=0):
+    mean = mu
+    coef = 1 / (np.sqrt(2 * np.pi) * sigma)
+    exponent = -((x - mean) ** 2) / (2 * sigma ** 2)
+    return normalise(coef * np.exp(exponent))
+
+
+@numba.jit(nopython=True)
+def mean_squared_error_numba(y_true, y_pred):
+    """A Numba-compatible implementation of Mean Squared Error."""
+    mse = 0.0
+    for i in range(y_true.shape[0]):
+        mse += (y_true[i] - y_pred[i])**2
+    return mse / y_true.shape[0]
+
+
 def optimise_q_gaussian(target_belief, measurement_range):
     num_q_steps = 50
     q_search_values = np.linspace(0, 3, num_q_steps)                   # q must be 0 < q < 3
@@ -27,7 +55,7 @@ def optimise_q_gaussian(target_belief, measurement_range):
                 continue
 
             y_q_gauss = dm.create_q_gaussian_distribution(measurement_range, q_candidate, sigma_candidate)
-            current_mse = mean_squared_error(target_belief, y_q_gauss)
+            current_mse = mean_squared_error_numba(target_belief, y_q_gauss)
 
             if np.isnan(current_mse):
                 continue
@@ -39,7 +67,7 @@ def optimise_q_gaussian(target_belief, measurement_range):
 
     return min_mse, optimal_q, optimal_sigma
 
-
+@numba.jit(nopython=True)
 def optimise_gaussian(target_belief, measurement_range):
     num_sigma_steps = 50
     sigma_min = 0.1
@@ -53,8 +81,8 @@ def optimise_gaussian(target_belief, measurement_range):
         if sigma_candidate <= 0:
             continue
 
-        y_gauss = dm.create_gaussian_distribution(measurement_range, sigma_candidate)
-        current_mse = mean_squared_error(target_belief, y_gauss)
+        y_gauss = create_gaussian_distribution(measurement_range, sigma_candidate)
+        current_mse = mean_squared_error_numba(target_belief, y_gauss)
 
         if np.isnan(current_mse):
             continue
@@ -63,9 +91,66 @@ def optimise_gaussian(target_belief, measurement_range):
             min_mse = current_mse
             optimal_sigma = sigma_candidate
         
-    optimal_mean = np.average(measurement_range, weights=target_belief)
+    optimal_mean = np.sum(measurement_range * target_belief)
 
     return min_mse, optimal_sigma, optimal_mean
+
+
+@numba.jit(nopython=True, parallel=True)
+def _calculate_all_mses(all_beliefs, measurement_range):
+    """
+    Calculates the best-fit Gaussian MSE for all beliefs in parallel.
+    Operates only on NumPy arrays.
+    """
+    num_variables = all_beliefs.shape[0]
+    mse_values_flat = np.zeros(num_variables)
+
+    # Using prange for parallel execution
+    for i in numba.prange(num_variables):
+        min_mse, _, _ = optimise_gaussian(all_beliefs[i, :], measurement_range)
+        mse_values_flat[i] = min_mse
+        
+    return mse_values_flat
+
+
+def get_mse_from_graph(graph):
+    # num_variables = len(graph.variables)
+    # width = graph.grid_cols
+    # height = int(np.ceil(num_variables/width))
+    
+    # mse_values = np.zeros((height, width))
+
+    # for i, variable in enumerate(graph.variables):
+    #     min_mse,_,_ = optimise_gaussian(variable.belief, cfg.measurement_range)
+    #     row = i // graph.grid_cols
+    #     col = i % graph.grid_cols
+    #     mse_values[row][col] = min_mse
+    
+    # return mse_values
+    """
+    Orchestrator function to calculate the MSE for every variable's belief.
+    It extracts data into NumPy arrays and calls the fast Numba helper.
+    """
+    print("Calculating best-fit Gaussian for each variable...")
+    num_variables = len(graph.variables)
+    width = graph.grid_cols
+    height = int(np.ceil(num_variables / width))
+    
+    # 1. Extract all beliefs into a single NumPy array
+    discretisation = len(graph.variables[0].belief)
+    all_beliefs = np.empty((num_variables, discretisation), dtype=np.float64)
+    for i, variable in enumerate(graph.variables):
+        all_beliefs[i, :] = variable.belief
+
+    # 2. Call the fast, parallel Numba function
+    mse_values_flat = _calculate_all_mses(all_beliefs, cfg.measurement_range)
+    
+    # 3. Reshape the flat results back into a 2D grid
+    mse_values = mse_values_flat.reshape((height, width))
+    
+    return mse_values
+
+
 
 
 ''' function to find the nearest prior to a variable in a factor graph '''

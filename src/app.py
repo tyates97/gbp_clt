@@ -62,7 +62,7 @@ graph = build_factor_graph(
     cfg.branching_factor,
     cfg.branching_probability,
 )
-graph = run_belief_propagation(graph, cfg.num_iterations, cfg.bp_pass_direction)
+graph = run_belief_propagation(graph, cfg.num_iterations)
 
 # Plotting
 st.subheader("Results")

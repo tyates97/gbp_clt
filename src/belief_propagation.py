@@ -199,7 +199,7 @@ def _run_bp_numba(num_iterations, discretisation,
     num_factors = factor_connections.shape[0]
 
     for iteration in range(num_iterations):
-        print(f"BP Stage 2: Running iteration {iteration}/{num_iterations}...")   
+        print(f"BP Stage 2: Running iteration {iteration+1}/{num_iterations}...")   
         ### STEP 1: Update messages from variables to factors (using message division)
         for i in range(num_variables):
             # Calculate the product of all incoming messages to this variable

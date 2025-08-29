@@ -2,6 +2,7 @@
 # External Libraries
 import numpy as np
 import numba
+import matplotlib.pyplot as plt
 
  # Internal modules
 import config as cfg
@@ -20,6 +21,14 @@ def normalise(distribution_values):
         # Return uniform distribution instead
         return np.ones_like(distribution_values) / len(distribution_values)
 
+# creates a gaussian distribution
+@numba.jit(nopython=True)
+def create_gaussian_distribution(x, sigma, mu=0):
+    mean = mu
+    coef = 1 / (np.sqrt(2 * np.pi) * sigma)
+    exponent = -((x - mean) ** 2) / (2 * sigma ** 2)
+    return normalise(coef * np.exp(exponent))
+
 def downsample_variance(distribution, target_width):
     max_width = len(distribution)
     current_width = np.count_nonzero(distribution)
@@ -35,13 +44,6 @@ def downsample_variance(distribution, target_width):
         # upsampling code
         pass
     return normalise(adjusted_distribution)
-
-# creates a gaussian distribution
-def create_gaussian_distribution(x, sigma, mu=0):
-    mean = mu
-    coef = 1 / (np.sqrt(2 * np.pi) * sigma)
-    exponent = -((x - mean) ** 2) / (2 * sigma ** 2)
-    return normalise(coef * np.exp(exponent))
 
 
 @numba.jit(nopython=True)
@@ -76,9 +78,8 @@ def create_smoothing_factor_distribution(discretisation, kernel=None, mrange=cfg
     if kernel is None:
         if mrange is None:
             raise ValueError("measurement_range required (pass it or set config.measurement_range).")
-        kernel = create_random_prior_distribution(mrange, mean=None, prior_width=cfg.smoothing_width*2)
+        kernel = create_random_prior_distribution(mrange, mean=None, prior_width=cfg.smoothing_width)
     
-    # TESTING
     kernel = np.asarray(kernel)
     extended_len = 2*discretisation-1
     extended_kernel = np.zeros(extended_len)
@@ -87,17 +88,30 @@ def create_smoothing_factor_distribution(discretisation, kernel=None, mrange=cfg
     start_idx = (extended_len-len(kernel)) // 2
     extended_kernel[start_idx:start_idx+len(kernel)] = kernel
 
+    ### Show extended_kernel
+    # plt.plot(range(2*cfg.belief_discretisation-1), extended_kernel)
+    # plt.show()
+
     # Create pairwise factor matrix
     unnormalised_factor_values = np.zeros((discretisation, discretisation))
 
-    center = 3*(discretisation - 1)//4
+    center = extended_len//2
     # Fill in the factor matrix constraining variables to be similar
-    for x1_rows in range(discretisation):
-        for x2_cols in range(discretisation):
-            diff = x2_cols-x1_rows
+    for x1_row in range(discretisation):
+        for x2_col in range(discretisation):
+            diff = x2_col-x1_row
             idx = diff + center
-            if 0 <= idx < discretisation:
-                unnormalised_factor_values[x1_rows, x2_cols] = extended_kernel[idx]
+            # if 0 <= idx < extended_len:
+            # unnormalised_factor_values[x2_col, x1_row] = extended_kernel[idx]
+            unnormalised_factor_values[x1_row, x2_col] = extended_kernel[idx]
+    
+    ## DEBUGGING: Show 2d array
+    # plt.figure()
+    # plt.imshow(unnormalised_factor_values)
+    # plt.figure()
+    # plt.plot(range(2*cfg.belief_discretisation-1), extended_kernel)
+    # plt.show()
+
     return normalise(unnormalised_factor_values)
 
 

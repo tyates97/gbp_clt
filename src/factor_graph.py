@@ -284,11 +284,11 @@ class FactorGraph:
                 
         
 
-    def add_pairwise_factors(self, num_loops, measurement_range, branching_factor, branching_probability):
+    def add_pairwise_factors(self, num_loops, measurement_range, branching_factor, branching_probability, num_cols=None):
         if self.is_tree:            
             self.add_tree_pairwise_factors(branching_factor, branching_probability)
         elif self.is_grid:
-            self.add_grid_pairwise_factors()
+            self.add_grid_pairwise_factors(num_cols=num_cols)
         else:
             self.add_loopy_pairwise_factors(num_loops, measurement_range)
 
@@ -318,12 +318,16 @@ def build_factor_graph(num_variables, num_priors, num_loops, graph_type, measure
 
 def get_graph_from_pdf(pdf_volume):
     print("Building factor graph from PDF volume...")
+    height = pdf_volume.shape[0]
+    width = pdf_volume.shape[1]
+    
     graph = FactorGraph()
-    num_variables = pdf_volume.shape[0]*pdf_volume.shape[1]
+    num_variables = height*width
     graph.is_grid = True
+    graph.grid_cols = width
 
     graph.add_variables(num_variables, belief_discretisation=pdf_volume.shape[2])
-    graph.add_pairwise_factors(0, cfg.measurement_range, 1, 1)
+    graph.add_pairwise_factors(0, cfg.measurement_range, 1, 1, num_cols=graph.grid_cols)
     graph.add_priors_from_pdf(pdf_volume)
 
     return graph
