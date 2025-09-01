@@ -3,7 +3,6 @@ import cv2
 import numpy as np
 from scipy.stats import t
 import matplotlib.pyplot as plt
-import collections
 
 # Internal modules
 import config as cfg
@@ -35,16 +34,16 @@ print("Images loaded")
 # Calculate the costs
 max_disparity = 64
 patch_size = 10
-cost_volume = ip.get_cost_volume(left_image, right_image, patch_size, max_disparity)
+cost_volume = ip.get_cost_volume(left_image, right_image, patch_size, cfg.belief_discretisation)
 
 # Convert the costs to a probability distribution
 # TODO: make sure you're happy with the softmax function used here, and the lambda value
 # TODO: speed this up with numba
 pdf_volume = ip.get_pdfs_from_costs(cost_volume)
 
-# Plot some of the pdfs that you've calculated
-num_curves = 100
-gx.plot_pdf_volume(pdf_volume, num_curves)
+# #DEBUGGING: Plot some of the pdfs that you've calculated
+# num_curves = 100
+# gx.plot_pdf_volume(pdf_volume, num_curves)
 
 # Build factor graph from image
 cfg.num_variables = pdf_volume.shape[0]*pdf_volume.shape[1]
@@ -64,7 +63,6 @@ graph = bp.run_belief_propagation(graph, cfg.num_iterations)
 # Plot some of the beliefs that you've calculated
 num_curves = 100
 gx.plot_graph_beliefs(graph, num_curves, max_disparity)
-
 
 ### Plotting MSE for each variable
 mse_volume = opt.get_mse_from_graph(graph)

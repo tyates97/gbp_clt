@@ -42,7 +42,9 @@ def get_cost_volume(left_image, right_image, patch_size, max_disparity):
 def get_pdfs_from_costs(cost_volume):
     print("Converting cost volume to pdf volume...")
     height,width,_ = cost_volume.shape
-    lambda_param = 0.1
+    # lambda_param = 0.1            # TESTING
+    lambda_param = 0.2              # TESTING
+    # lambda_param = 1.0            # TESTING
     pdf_volume = np.zeros(cost_volume.shape)
 
     for y in range(height):

@@ -278,7 +278,7 @@ class FactorGraph:
             
             if len(self.factors) % 34000 == 0:
                 percentage_processed = int((len(self.factors)/len(connections))*100)    
-                print(f"{percentage_processed}% of variable pairwise factors added.")
+                print(f"{percentage_processed}% of pairwise factors added.")
 
         print("All pairwise factors added.")
                 
