@@ -31,7 +31,7 @@ belief_discretisation = 64
 
 # Distributions
 prior_width = int(belief_discretisation/2)
-smoothing_width = int(belief_discretisation*0.3)
+smoothing_width = int(belief_discretisation*0.1)
 min_measurement = -5
 max_measurement = 5
 measurement_range = np.linspace(min_measurement, max_measurement, belief_discretisation)

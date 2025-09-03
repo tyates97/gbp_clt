@@ -248,7 +248,7 @@ def plot_results(graph, max_subplots, measurement_range, show_comparison=True, s
 
 
 ''' Plot overlaid pdf distributions '''
-def plot_pdf_volume(pdf_volume, num_curves):
+def plot_volume_curves(pdf_volume, num_curves):
     
     print(f"Plotting {num_curves} PDFs...")
     # Get the dimensions of the pdf_volume
@@ -304,4 +304,22 @@ def plot_graph_beliefs(graph, num_curves, max_disparity):
             plt.plot(range(max_disparity), belief, alpha=0.5) 
 
     # Show the plot
+    plt.show()
+
+
+def plot_variance_heatmap(pdf_volume):
+    # Get the dimensions of the pdf_volume
+    height, width, max_disparity = pdf_volume.shape
+    variance_vol = np.zeros((height, width))
+    # Iterate through the pdf_volume with the defined step sizes
+    # This selects approximately 100 points
+    for y in range(0, height):
+        for x in range(0, width):
+            # Extract the probability distribution for the current pixel
+            variance_vol[y,x] = np.var(pdf_volume[y,x,:])
+
+    im = plt.imshow(variance_vol, cmap='RdYlGn') # Red (high variance) to Green (low variance)
+    plt.colorbar(im, label='Var')
+    plt.axis('off')
+    plt.tight_layout()
     plt.show()

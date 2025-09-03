@@ -40,8 +40,8 @@ def optimise_q_gaussian(target_belief, measurement_range):
     num_q_steps = 50
     q_search_values = np.linspace(0, 3, num_q_steps)                   # q must be 0 < q < 3
 
-    num_sigma_steps = 50
-    sigma_search_values = np.linspace(0.1, 5, num_sigma_steps)
+    num_sigma_steps = cfg.belief_discretisation
+    sigma_search_values = np.linspace(0, cfg.belief_discretisation-1, num_sigma_steps)
 
     min_mse = float('inf')
     optimal_q = None
