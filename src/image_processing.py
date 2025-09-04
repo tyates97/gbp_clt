@@ -75,6 +75,21 @@ def get_pdfs_from_costs(cost_volume):
     return pdf_volume
 
 
+def get_disparity_from_graph(graph):
+    num_variables = len(graph.variables)
+    num_cols = graph.grid_cols
+    num_rows = int(np.ceil(num_variables/num_cols))
+    
+    disparity_volume = np.zeros((num_rows, num_cols))
+    for i, variable in enumerate(graph.variables):
+        row = i // num_cols
+        col = i % num_cols
+
+        MAP_disparity = np.argmax(variable.belief)
+        disparity_volume[row][col] = MAP_disparity
+    
+    return disparity_volume
+
 
 
 

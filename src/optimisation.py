@@ -3,6 +3,7 @@
 import numpy as np
 import networkx as nx
 import numba
+import cv2
 # from sklearn.metrics import mean_squared_error
 
 # Local modules
@@ -69,9 +70,12 @@ def optimise_q_gaussian(target_belief, measurement_range):
 
 @numba.jit(nopython=True)
 def optimise_gaussian(target_belief, measurement_range):
-    num_sigma_steps = 50
-    sigma_min = 0.1
-    sigma_max = 5.0
+    # num_sigma_steps = 50
+    # sigma_min = 0.1
+    # sigma_max = 5.0
+    sigma_min = 1
+    sigma_max = 63
+    num_sigma_steps = 64
     
     sigma_search_values = np.linspace(sigma_min, sigma_max, num_sigma_steps)
     min_mse = float('inf')

@@ -244,7 +244,7 @@ class FactorGraph:
         return connections_array[:count]
 
 
-    def add_grid_pairwise_factors(self, num_cols=None):
+    def add_grid_pairwise_factors(self, num_cols=None, hist=None):
         """
         Adds pairwise factors to a grid graph. This function orchestrates the process:
         1. Calls a fast, JIT-compiled helper to calculate connection indices.
@@ -271,7 +271,7 @@ class FactorGraph:
             var2 = self.variables[j]
             
             # Create a new smoothing function for each factor
-            pairwise_function = dm.create_smoothing_factor_distribution(belief_discretisation)
+            pairwise_function = dm.create_smoothing_factor_distribution(belief_discretisation, hist=hist)
             
             self.add_factor([var1, var2], pairwise_function)
 
@@ -284,11 +284,11 @@ class FactorGraph:
                 
         
 
-    def add_pairwise_factors(self, num_loops, measurement_range, branching_factor, branching_probability, num_cols=None):
+    def add_pairwise_factors(self, num_loops, measurement_range, branching_factor, branching_probability, num_cols=None, hist=None):
         if self.is_tree:            
             self.add_tree_pairwise_factors(branching_factor, branching_probability)
         elif self.is_grid:
-            self.add_grid_pairwise_factors(num_cols=num_cols)
+            self.add_grid_pairwise_factors(num_cols=num_cols, hist=hist)
         else:
             self.add_loopy_pairwise_factors(num_loops, measurement_range)
 
@@ -316,7 +316,7 @@ def build_factor_graph(num_variables, num_priors, num_loops, graph_type, measure
     graph.add_priors(num_priors, measurement_range, prior_location)
     return graph
 
-def get_graph_from_pdf(pdf_volume):
+def get_graph_from_pdf_hist(pdf_volume, hist=None):
     print("Building factor graph from PDF volume...")
     height = pdf_volume.shape[0]
     width = pdf_volume.shape[1]
@@ -325,9 +325,8 @@ def get_graph_from_pdf(pdf_volume):
     num_variables = height*width
     graph.is_grid = True
     graph.grid_cols = width
-
     graph.add_variables(num_variables, belief_discretisation=pdf_volume.shape[2])
-    graph.add_pairwise_factors(0, cfg.measurement_range, 1, 1, num_cols=graph.grid_cols)
+    graph.add_pairwise_factors(0, cfg.measurement_range, 1, 1, num_cols=graph.grid_cols, hist=hist)
     graph.add_priors_from_pdf(pdf_volume)
 
     return graph

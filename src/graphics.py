@@ -7,7 +7,7 @@ import networkx as nx
 
 # local modules
 import distribution_management as dm
-from optimisation import optimise_gaussian
+import optimisation as opt
 
 ''' Setting the font sizes '''
 plt.rcParams.update({
@@ -99,7 +99,7 @@ def plot_final_beliefs(fig, gs, variables_to_plot, measurement_range, y_max, num
             ax.plot(measurement_range, var.belief)
 
             # min_mse, optimal_sigma = optimise_gaussian(variable_to_optimise_for.belief, measurement_range)
-            min_mse, gaussian_sigma, gaussian_mu = optimise_gaussian(var.belief, measurement_range)
+            min_mse, gaussian_sigma, gaussian_mu = opt.optimise_gaussian(var.belief, measurement_range)
             y_gauss = dm.create_gaussian_distribution(measurement_range, gaussian_sigma, mu=gaussian_mu)
             if show_comparison:
                 ax.plot(measurement_range, y_gauss, color='green', label='Gaussian')
@@ -323,3 +323,93 @@ def plot_variance_heatmap(pdf_volume):
     plt.axis('off')
     plt.tight_layout()
     plt.show()
+
+
+def plot_gaussian_heatmap(graph, title):
+    ### Plotting MSE for each variable
+    mse_volume = opt.get_mse_from_graph(graph)
+
+    plt.figure(title)
+    im = plt.imshow(mse_volume, cmap='RdYlGn_r')
+    plt.colorbar(im, label=f'MSE (lower = more Gaussian, {title}')
+    plt.axis('off')
+    plt.tight_layout()
+
+
+def plot_depth_estimate(disparity_volume, title):
+    plt.figure(title)
+    plt.imshow(disparity_volume, cmap='gray')
+    plt.axis('off')
+    plt.tight_layout()
+
+
+
+def interactive_pixel_inspector(left_image, cost_volume, max_disparity):
+    """
+    Displays the left image and sets up an interactive session where clicking
+    on a pixel plots its corresponding cost function.
+    """
+    # --- Setup Figure 1: The main image for clicking ---
+    fig_main, ax_main = plt.subplots()
+    ax_main.imshow(left_image, cmap='gray')
+    ax_main.set_title('Click a pixel to inspect its cost function')
+
+    # --- Setup Figure 2: The persistent plot for cost curves ---
+    fig_cost, ax_cost = plt.subplots()
+    ax_cost.set_title('Cost Function Plot')
+    ax_cost.set_xlabel("Disparity")
+    ax_cost.set_ylabel("Cost (1 - NCC)")
+    ax_cost.grid(True)
+
+    disparity_range = np.arange(max_disparity)
+
+    # --- Define the event handler ---
+    def onclick(event):
+        # Ignore clicks outside main image axes
+        if event.inaxes != ax_main:
+            return
+
+        # Get integer coordinates of the click
+        ix, iy = int(event.xdata), int(event.ydata)
+        
+        # Extract the specific cost curve for the clicked pixel
+        cost_curve = cost_volume[iy, ix, :]
+        
+        # --- Update the existing cost plot ---
+        ax_cost.clear() # Clear the previous plot content
+        
+        # Redraw the plot with the new data
+        ax_cost.plot(disparity_range, cost_curve)
+        ax_cost.set_title(f"Cost Function at Pixel (y={iy}, x={ix})")
+        ax_cost.set_xlabel("Disparity")
+        ax_cost.set_ylabel("Cost (1 - NCC)")
+        ax_cost.grid(True)
+        
+        # Redraw the canvas
+        fig_cost.canvas.draw_idle()
+
+    # Connect the 'button_press_event' to the onclick function
+    fig_main.canvas.mpl_connect('button_press_event', onclick)
+
+
+def plot_disparity_histogram(hist, bin_edges):
+    """
+    Plots a histogram of disparity differences from ground truth data.
+    """
+    plt.figure("Disparity Difference Histogram")
+    
+    # The bar width should be the size of each bin
+    bar_width = bin_edges[1] - bin_edges[0]
+    
+    # Center the bars on the bin edges
+    bin_centers = bin_edges[:-1] + bar_width / 2
+    
+    plt.bar(bin_centers, hist, width=bar_width, edgecolor='black')
+    
+    plt.title('Histogram of Neighboring Disparity Differences')
+    plt.xlabel('Difference in Disparity Value')
+    plt.ylabel('Frequency (Count)')
+    plt.grid(axis='y', alpha=0.75)
+    
+    # Optional: Use a logarithmic scale if a few bins dominate the plot
+    # plt.yscale('log')

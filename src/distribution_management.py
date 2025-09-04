@@ -94,19 +94,19 @@ def create_random_prior_distribution(x_range, mean=None, prior_width=None):
 
 @numba.jit(nopython=True)
 # creates a smoothing factor that encourages neighbouring variables to have the same factor
-def create_smoothing_factor_distribution(discretisation, kernel=None, mrange=cfg.measurement_range):
-    # if kernel is None:
-    #     if mrange is None:
-    #         raise ValueError("measurement_range required (pass it or set config.measurement_range).")
-    #     kernel = create_random_prior_distribution(mrange, mean=None, prior_width=cfg.smoothing_width)
-    
-    # Create triangular kernel favoring small disparity differences
-    x = np.linspace(-cfg.smoothing_width/2, cfg.smoothing_width/2, cfg.smoothing_width) #DEBUG potential issue here
-    kernel = np.maximum(0, 1 - np.abs(x)/(cfg.smoothing_width/2))
-
-    kernel = np.asarray(kernel)
+def create_smoothing_factor_distribution(discretisation, kernel=None, mrange=cfg.measurement_range, hist=None):
     extended_len = 2*discretisation-1
     extended_kernel = np.zeros(extended_len)
+
+    if hist is None:
+        x = np.linspace(-cfg.smoothing_width/2, cfg.smoothing_width/2, cfg.smoothing_width) #DEBUG potential issue here
+        kernel = np.maximum(0, 1 - np.abs(x)/(cfg.smoothing_width/2))
+        kernel = np.asarray(kernel)
+
+    # If not given a histogram, create a triangular kernel favoring small disparity differences
+    else:
+        kernel = hist
+        
 
     # Place original kernel in the center of the extended kernel
     start_idx = (extended_len-len(kernel)) // 2
@@ -137,5 +137,43 @@ def create_smoothing_factor_distribution(discretisation, kernel=None, mrange=cfg
     # plt.show()
 
     return normalise(unnormalised_factor_values)
+    
+
+@numba.jit(nopython=True)
+def get_histogram_from_truth(ground_truth):
+    """
+    Calculates disparity differences with Numba-accelerated for loops.
+    Ignores occluded pixels (value 0).
+    """
+    height, width = ground_truth.shape
+    # Pre-allocate a list with an estimated size for performance
+    disp_diff_list = []
+
+    for row in range(height):
+        for col in range(width):
+            pixel_disparity = ground_truth[row, col]
+            
+            # Ignore occluded/invalid pixels - very important
+            if pixel_disparity == 0:
+                continue
+
+            # Check right neighbor
+            if col + 1 < width:
+                neighbour_disparity = ground_truth[row, col + 1]
+                if neighbour_disparity > 0:
+                    disp_diff_list.append(pixel_disparity - neighbour_disparity)
+            
+            # Check neighbor below
+            if row + 1 < height:
+                neighbour_disparity = ground_truth[row + 1, col]
+                if neighbour_disparity > 0:
+                    disp_diff_list.append(pixel_disparity - neighbour_disparity)
+    
+    # We want this to be centred on zero, so will count all differences both ways (e.g. from pixel 1 to 2 and from 2 to 1)
+    diffs_array = np.array(disp_diff_list)
+    all_diffs_symmetric = np.concatenate((diffs_array, -diffs_array))
+
+    return all_diffs_symmetric
+
 
 
