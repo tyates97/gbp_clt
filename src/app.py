@@ -2,6 +2,7 @@ import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
 import collections
+import cv2
 
 import optimisation as opt
 import distribution_management as dm
@@ -41,6 +42,7 @@ if cfg.graph_type == 'Tree':
 # Grid Graph submenu
 if cfg.graph_type == 'Grid':
     cfg.show_heatmap = st.sidebar.checkbox("Show Heatmap", value=False)
+    cfg.sparse = True
 
 # Additional variables
 st.sidebar.subheader("Belief Propagation Configuration")
@@ -49,7 +51,18 @@ cfg.belief_discretisation = st.sidebar.slider("Belief Discretisation", 8, 128, c
 cfg.prior_width = st.sidebar.slider("Prior Width", 4, int(cfg.belief_discretisation/2), cfg.prior_width, step=4)
 cfg.smoothing_width = st.sidebar.slider("Smoothing Width", 4, int(cfg.belief_discretisation/2), cfg.smoothing_width, step=4)
 cfg.random_seed = st.sidebar.number_input("Random Seed", value=42, step=1)
+np.random.seed(cfg.random_seed)
 cfg.rng = np.random.default_rng(seed=cfg.random_seed)  # Update RNG with user-defined seed
+
+
+# Get disparity histogram
+image_dir = 'data/stereo/teddy/'
+left_ground_truth_filename = "disp2.png"
+ground_truth = cv2.imread(image_dir+left_ground_truth_filename, cv2.IMREAD_GRAYSCALE)
+ground_truth_signed = ground_truth.astype(np.int16)
+all_diffs = dm.get_histogram_from_truth(ground_truth_signed)
+hist, bin_edges = np.histogram(all_diffs, bins=2*cfg.belief_discretisation-1)
+smoothing_kernel = dm.normalise(hist)
 
 # Build and run
 graph = build_factor_graph(
@@ -60,7 +73,8 @@ graph = build_factor_graph(
     cfg.measurement_range,
     cfg.prior_location,
     cfg.branching_factor,
-    cfg.branching_probability,
+    cfg.branching_probability
+    # , hist=smoothing_kernel
 )
 graph = run_belief_propagation(graph, cfg.num_iterations)
 

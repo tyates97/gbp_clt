@@ -178,7 +178,7 @@ def plot_heatmap(fig, gs, graph, measurement_range, cmap='viridis'):
         if v.belief is None or len(v.belief) == 0:
             node_vals.append(np.nan)
         else:
-            mse, _, _ = optimise_gaussian(v.belief, measurement_range)
+            mse, _, _ = opt.optimise_gaussian(v.belief, measurement_range)
             node_vals.append(mse)
     node_vals = np.array(node_vals, dtype=float)
 

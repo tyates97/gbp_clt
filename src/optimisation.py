@@ -73,19 +73,19 @@ def optimise_gaussian(target_belief, measurement_range):
     # num_sigma_steps = 50
     # sigma_min = 0.1
     # sigma_max = 5.0
-    sigma_min = 1
-    sigma_max = 63
-    num_sigma_steps = 64
     
+    sigma_min = 0.1 #1e6 to avoid dividing by zero
+    sigma_max = (measurement_range[-1] - measurement_range[0]) / 4.0
+    num_sigma_steps = 100 # cfg.belief_discretisation
+    
+    optimal_mean = np.sum(measurement_range * target_belief)
+
     sigma_search_values = np.linspace(sigma_min, sigma_max, num_sigma_steps)
     min_mse = float('inf')
     optimal_sigma = None
         
     for sigma_candidate in sigma_search_values:
-        if sigma_candidate <= 0:
-            continue
-
-        y_gauss = create_gaussian_distribution(measurement_range, sigma_candidate)
+        y_gauss = create_gaussian_distribution(measurement_range, sigma_candidate, mu=optimal_mean)
         current_mse = mean_squared_error_numba(target_belief, y_gauss)
 
         if np.isnan(current_mse):
@@ -94,8 +94,6 @@ def optimise_gaussian(target_belief, measurement_range):
         if current_mse < min_mse:
             min_mse = current_mse
             optimal_sigma = sigma_candidate
-        
-    optimal_mean = np.sum(measurement_range * target_belief)
 
     return min_mse, optimal_sigma, optimal_mean
 

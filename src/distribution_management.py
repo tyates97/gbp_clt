@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
  # Internal modules
 import config as cfg
 
-cfg.rng = np.random.default_rng(seed=42)
+# cfg.rng = np.random.default_rng(seed=42)
 
 # normalises a set of distribution values so their sum adds to 1
 @numba.jit(nopython=True)
@@ -46,7 +46,7 @@ def downsample_variance(distribution, target_width):
     return normalise(adjusted_distribution)
 
 
-@numba.jit(nopython=True)
+# @numba.jit(nopython=True)
 # creates a random discrete distribution for the variable priors
 def create_random_prior_distribution(x_range, mean=None, prior_width=None):
     if prior_width is None:
@@ -68,7 +68,7 @@ def create_random_prior_distribution(x_range, mean=None, prior_width=None):
     
     
     unnormalised_prior = np.zeros(discretisation)
-    unnormalised_prior[start:end] = np.random.rand(end-start)    
+    unnormalised_prior[start:end] = cfg.rng.random(end-start)    
     return normalise(unnormalised_prior)
 
 

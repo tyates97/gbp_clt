@@ -304,7 +304,7 @@ class FactorGraph:
 ''' functions '''
 
 #TODO: make the number of arguments being passed here more efficient
-def build_factor_graph(num_variables, num_priors, num_loops, graph_type, measurement_range, prior_location, branching_factor=2, branching_probability=1.0):
+def build_factor_graph(num_variables, num_priors, num_loops, graph_type, measurement_range, prior_location, branching_factor=2, branching_probability=1.0, hist=None):
     print("Building factor graph...")
     # Create a factor graph
     graph = FactorGraph()
@@ -312,7 +312,7 @@ def build_factor_graph(num_variables, num_priors, num_loops, graph_type, measure
     if graph_type == 'Tree': graph.is_tree = True
     elif graph_type == 'Grid': graph.is_grid =  True
     graph.add_variables(num_variables, belief_discretisation)
-    graph.add_pairwise_factors(num_loops, measurement_range, branching_factor, branching_probability)
+    graph.add_pairwise_factors(num_loops, measurement_range, branching_factor, branching_probability, hist=hist)
     graph.add_priors(num_priors, measurement_range, prior_location)
     return graph
 

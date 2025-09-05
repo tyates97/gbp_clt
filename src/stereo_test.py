@@ -35,19 +35,19 @@ print("Images loaded")
 # cv2.imshow("Right Image", right_image)
 # cv2.waitKey(0)
 
-''' 2. Calculate Costs '''
+# ''' 2. Calculate Costs '''
 
 # # Calculate the costs
-cfg.max_measurement = int(np.ceil(max(ground_truth.flatten()/4)))
+cfg.max_measurement = 64 # int(np.ceil(max(ground_truth.flatten()/4)))
 cfg.belief_discretisation = cfg.max_measurement
 patch_size = 5*5
 cost_volume = ip.get_cost_volume(left_image, right_image, patch_size, cfg.belief_discretisation)
 
-# # Plot the cost functions for various pixels
-# gx.interactive_pixel_inspector(left_image, cost_volume, cfg.max_measurement)
-# plt.show()
-# print(f"Plotting cost variance heatmap...")
-# gx.plot_variance_heatmap(cost_volume)
+# Plot the cost functions for various pixels
+gx.interactive_pixel_inspector(left_image, cost_volume, cfg.max_measurement)
+plt.show()
+print(f"Plotting cost variance heatmap...")
+gx.plot_variance_heatmap(cost_volume)
 
 
 ''' 3. Convert Costs to PDFs '''
@@ -55,11 +55,11 @@ cost_volume = ip.get_cost_volume(left_image, right_image, patch_size, cfg.belief
 # Convert the costs to a probability distribution
 pdf_volume = ip.get_pdfs_from_costs(cost_volume)
 
-# # Plot the pdfs for various pixels
-# gx.interactive_pixel_inspector(left_image, pdf_volume, cfg.max_measurement)
-# plt.show()
-# print(f"Plotting cost variance heatmap...")
-# gx.plot_variance_heatmap(pdf_volume)
+# # # Plot the pdfs for various pixels
+# # gx.interactive_pixel_inspector(left_image, pdf_volume, cfg.max_measurement)
+# # plt.show()
+# # # print(f"Plotting cost variance heatmap...")
+# # gx.plot_variance_heatmap(pdf_volume)
 
 
 ''' 4. Build Factor Graph '''
@@ -108,15 +108,15 @@ graph_after_bp = graph
 # num_curves = 100
 # gx.plot_graph_beliefs(graph, num_curves, cfg.max_measurement)
 
-# # Show results - depth map results
-# disparity_vol_post_bp = ip.get_disparity_from_graph(graph)
-# cv2.imshow("Left Image", left_image)
-# gx.plot_depth_estimate(disparity_vol_post_bp, "Disparity Post-BP")
-# gx.plot_depth_estimate(disparity_vol_pre_bp, "Disparity Pre-BP")
-# plt.show()
-
-# Show results - gaussian heatmaps
-gx.plot_gaussian_heatmap(graph_before_bp, "Heatmap 1: Pre-BP")
-gx.plot_gaussian_heatmap(graph_after_bp, "Heatmap 2: Post-BP")
+# Show results - depth map results
+disparity_vol_post_bp = ip.get_disparity_from_graph(graph)
+cv2.imshow("Left Image", left_image)
+gx.plot_depth_estimate(disparity_vol_post_bp, "Disparity Post-BP")
+gx.plot_depth_estimate(disparity_vol_pre_bp, "Disparity Pre-BP")
 plt.show()
+
+# # Show results - gaussian heatmaps
+# gx.plot_gaussian_heatmap(graph_before_bp, "Heatmap 1: Pre-BP")
+# gx.plot_gaussian_heatmap(graph_after_bp, "Heatmap 2: Post-BP")
+# plt.show()
 
