@@ -26,7 +26,7 @@ show_heatmap = False
 max_subplots = 12
 
 # Loopy BP
-num_iterations = 10
+num_iterations = 1
 belief_discretisation = 64
 
 # Distributions

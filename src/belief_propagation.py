@@ -185,7 +185,7 @@ import numba
 # Local modules
 import distribution_management as dm
 
-@numba.jit(nopython=True)
+# @numba.jit(nopython=True)
 def _run_bp_numba(num_iterations, discretisation,
                   factor_to_var_msgs, var_to_factor_msgs, beliefs,
                   factor_connections, var_neighbors, factor_functions, priors, prior_indices,
@@ -197,6 +197,12 @@ def _run_bp_numba(num_iterations, discretisation,
     """
     num_variables = var_neighbors.shape[0]
     num_factors = factor_connections.shape[0]
+
+    # Handle prior factors (which are unary)
+    for i in range(prior_indices.shape[0]):
+        prior_factor_idx = prior_indices[i]
+        # The message from a prior is just the prior itself. It goes to neighbor 0.
+        factor_to_var_msgs[prior_factor_idx, 0, :] = priors[i]
 
     for iteration in range(num_iterations):
         print(f"BP Stage 2: Running iteration {iteration+1}/{num_iterations}...")   
@@ -256,12 +262,6 @@ def _run_bp_numba(num_iterations, discretisation,
                 s2 = np.sum(msg_to_var2)
                 if s2 > 0:
                     factor_to_var_msgs[i, 1, :] = msg_to_var2 / s2
-
-        # Handle prior factors (which are unary)
-        for i in range(prior_indices.shape[0]):
-            prior_factor_idx = prior_indices[i]
-            # The message from a prior is just the prior itself. It goes to neighbor 0.
-            factor_to_var_msgs[prior_factor_idx, 0, :] = priors[i]
 
     ### STEP 3: Update final beliefs
     for i in range(num_variables):
