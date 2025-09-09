@@ -51,6 +51,29 @@ def calculate_max_belief(graph):
     # Add a small margin for better visualization
     return max_overall_val * 1.1
 
+def _calculate_distributional_variance(pdf_volume):
+    """Calculates the true variance of the disparity distributions."""
+    height, width, max_disparity = pdf_volume.shape
+    variance_vol = np.zeros((height, width))
+
+    # The x-values of our distribution (i.e., the disparity values)
+    disparity_values = np.arange(max_disparity)
+
+    for y in range(height):
+        for x in range(width):
+            pdf = pdf_volume[y, x, :]
+
+            # E[X] = sum(x * p(x))
+            mean = np.sum(disparity_values * pdf)
+
+            # E[X^2] = sum(x^2 * p(x))
+            mean_sq = np.sum((disparity_values**2) * pdf)
+
+            # Var(X) = E[X^2] - (E[X])^2
+            variance = mean_sq - (mean**2)
+            variance_vol[y, x] = variance
+
+    return variance_vol
 
 
 
@@ -307,19 +330,32 @@ def plot_graph_beliefs(graph, num_curves, max_disparity):
     plt.show()
 
 
-def plot_variance_heatmap(pdf_volume):
-    # Get the dimensions of the pdf_volume
-    height, width, max_disparity = pdf_volume.shape
-    variance_vol = np.zeros((height, width))
-    # Iterate through the pdf_volume with the defined step sizes
-    # This selects approximately 100 points
-    for y in range(0, height):
-        for x in range(0, width):
-            # Extract the probability distribution for the current pixel
-            variance_vol[y,x] = np.var(pdf_volume[y,x,:])
+# def plot_variance_heatmap(pdf_volume):
+#     # Get the dimensions of the pdf_volume
+#     height, width, _ = pdf_volume.shape
+#     variance_vol = np.zeros((height, width))
+#     # Iterate through the pdf_volume with the defined step sizes
+#     # This selects approximately 100 points
+#     for y in range(0, height):
+#         for x in range(0, width):
+#             # Extract the probability distribution for the current pixel
+#             variance_vol[y,x] = np.var(pdf_volume[y,x,:])
 
-    im = plt.imshow(variance_vol, cmap='RdYlGn') # Red (high variance) to Green (low variance)
-    plt.colorbar(im, label='Var')
+#     im = plt.imshow(variance_vol, cmap='RdYlGn') # Red=low, Green=high var
+#     plt.colorbar(im, label='Var')
+#     plt.title('Disparity Variance Per Pixel')
+#     plt.axis('off')
+#     plt.tight_layout()
+#     plt.show()
+
+
+def plot_variance_heatmap(pdf_volume):
+    variance_vol = _calculate_distributional_variance(pdf_volume)
+    # The colormap should be inverted to show high variance as green
+    # RdYlGn_r (reversed) maps High -> Red, Low -> Green. We want the opposite.
+    im = plt.imshow(variance_vol, cmap='RdYlGn') # Red=Low Var, Green=High Var
+    plt.colorbar(im, label='Variance of Disparity')
+    
     plt.axis('off')
     plt.tight_layout()
     plt.show()

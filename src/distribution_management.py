@@ -204,52 +204,34 @@ def get_histogram_from_truth(ground_truth):
 
 
 ''' TEST '''
-
-
-import numba
-import numpy as np
-import config as cfg  # assuming you already import cfg the same way elsewhere
-
-
 @numba.jit(nopython=True)
 def _make_default_triangular_kernel(width):
     # width >= 1; triangle with peak 1 at center, linearly decaying to 0 at edges
     # Works for odd/even widths.
-    k = np.zeros(width, dtype=np.float64)
-    # center index in [0 .. width-1]
-    c = width // 2
-    denom = max(1.0, c)  # avoid div by zero when width=1 or 2
+    kernel = np.zeros(width, dtype=np.float64)
+    centre_idx = width // 2
+    denominator = max(1.0, centre_idx)  # avoid div by zero when width=1 or 2
     for i in range(width):
         # symmetric triangular shape
-        k[i] = max(0.0, 1.0 - abs(i - c) / denom)
+        kernel[i] = max(0.0, 1.0 - abs(i - centre_idx) / denominator)
+    
     # normalise to sum 1
-    s = 0.0
-    for i in range(width):
-        s += k[i]
-    if s > 0.0:
-        inv = 1.0 / s
-        for i in range(width):
-            k[i] *= inv
-    else:
-        inv = 1.0 / width
-        for i in range(width):
-            k[i] = inv
-    return k
+    _normalise_vector_inplace(kernel)
+
+    return kernel
 
 
 @numba.jit(nopython=True)
-def _normalise_vector_inplace(v):
-    s = 0.0
-    for i in range(v.shape[0]):
-        s += v[i]
-    if s > 0.0:
-        inv = 1.0 / s
-        for i in range(v.shape[0]):
-            v[i] *= inv
+def _normalise_vector_inplace(vector):
+
+    sum = np.sum(vector)
+    if sum > 0.0:
+        for i in range(vector.shape[0]):
+            vector[i] /= sum
     else:
-        inv = 1.0 / v.shape[0]
-        for i in range(v.shape[0]):
-            v[i] = inv
+        uniform_val = 1.0 / vector.shape[0]
+        for i in range(vector.shape[0]):
+            vector[i] = uniform_val
 
 
 @numba.jit(nopython=True)
@@ -279,30 +261,68 @@ def create_smoothing_factor_distribution(discretisation, kernel=None, mrange=0, 
             width = 1
         if width > N:
             width = N
-        base = _make_default_triangular_kernel(width)
+        # base = _make_default_triangular_kernel(width)
+        base = _make_default_triangular_kernel(width//20)
 
     # --- embed the base kernel on a circle of length N
     # We center `base` and wrap its mass onto a length-N circular vector k.
-    k = np.zeros(N, dtype=np.float64)
-    L = base.shape[0]
-    c = L // 2
-    for i in range(L):
-        d = i - c                # signed offset
-        k[(d % N + N) % N] += base[i]  # safe modulo in nopython
+    kernel = np.zeros(N, dtype=np.float64)
+    Length = base.shape[0]
+    centre = Length // 2
+    for i in range(Length):
+        diff = i - centre                # signed offset
+        kernel[(diff % N)] += base[i]  # safe modulo in nopython
+        # kernel[(diff % N + N) % N] += base[i]  # safe modulo in nopython
 
     # normalise k to sum 1 (robust even if base was all zeros)
-    _normalise_vector_inplace(k)
+    _normalise_vector_inplace(kernel)
 
-    # --- build the circulant matrix: each row is a rotation of k
+    # --- build the circulant matrix: each row is a rotation of kernel
     mat = np.empty((N, N), dtype=np.float64)
     for x1 in range(N):
         # row x1: f(x1, x2) = k[(x2 - x1) mod N]
         for x2 in range(N):
-            d = (x2 - x1) % N
-            mat[x1, x2] = k[d]
+            diff = (x2 - x1) % N
+            mat[x1, x2] = kernel[diff]
 
     return mat
 
 
 
-''' END TEST '''
+# @numba.jit(nopython=True)
+# def create_smoothing_factor_distribution(discretisation,
+#                                          # New parameters for our edge-aware model:
+#                                          tau=2.0,  # The "edge" threshold
+#                                          gamma=0.1, # The smoothness strength
+#                                          hist=None
+#                                          ):
+#     """
+#     Creates a pairwise smoothing factor using an edge-aware
+#     truncated linear model.
+
+#     Args:
+#         discretisation (int): The number of disparity levels.
+#         tau (float): The truncation threshold. Disparity differences
+#                      above this value are considered edges and are not
+#                      heavily penalized, preserving them.
+#         gamma (float): The smoothness strength. Controls how much
+#                        smoothing is applied to differences *below* tau.
+#     """
+#     unnormalised_factor_values = np.zeros((discretisation, discretisation), dtype=np.float64)
+
+#     for x1 in range(discretisation):
+#         for x2 in range(discretisation):
+#             diff = np.abs(x1 - x2)
+
+#             # Truncated linear cost: cost increases linearly up to tau,
+#             # then stays flat. This allows for sharp edges.
+#             cost = min(diff, tau)
+
+#             # Convert cost to a potential (probability)
+#             unnormalised_factor_values[x1, x2] = np.exp(-gamma * cost)
+
+#     return normalise_rows(unnormalised_factor_values)
+
+
+
+# ''' END TEST '''

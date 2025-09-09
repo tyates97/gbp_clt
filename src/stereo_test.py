@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 from scipy.stats import t
 import matplotlib.pyplot as plt
+import copy
 
 # Internal modules
 import config as cfg
@@ -46,20 +47,20 @@ cost_volume = ip.get_cost_volume(left_image, right_image, patch_size, cfg.belief
 # Plot the cost functions for various pixels
 gx.interactive_pixel_inspector(left_image, cost_volume, cfg.max_measurement)
 plt.show()
-print(f"Plotting cost variance heatmap...")
-gx.plot_variance_heatmap(cost_volume)
+# print(f"Plotting cost variance heatmap...")
+# gx.plot_variance_heatmap(cost_volume)
 
 
 ''' 3. Convert Costs to PDFs '''
-
 # Convert the costs to a probability distribution
 pdf_volume = ip.get_pdfs_from_costs(cost_volume)
 
-# # # Plot the pdfs for various pixels
-# # gx.interactive_pixel_inspector(left_image, pdf_volume, cfg.max_measurement)
-# # plt.show()
-# # # print(f"Plotting cost variance heatmap...")
-# # gx.plot_variance_heatmap(pdf_volume)
+
+# Plot the pdfs for various pixels
+gx.interactive_pixel_inspector(left_image, pdf_volume, cfg.max_measurement)
+plt.show()
+print(f"Plotting prior variance heatmap...")
+gx.plot_variance_heatmap(pdf_volume)
 
 
 ''' 4. Build Factor Graph '''
@@ -70,9 +71,9 @@ all_diffs = dm.get_histogram_from_truth(ground_truth_signed)
 hist, bin_edges = np.histogram(all_diffs, bins=2*cfg.belief_discretisation-1)
 smoothing_kernel = dm.normalise(hist)
 
-# # Plot disparity pdf
-# gx.plot_disparity_histogram(smoothing_kernel, bin_edges)
-# plt.show()
+# Plot disparity pdf
+gx.plot_disparity_histogram(smoothing_kernel, bin_edges)
+plt.show()
 
 # # DEBUGGING: visualise smoothing factors
 # dm.create_smoothing_factor_distribution(cfg.belief_discretisation, hist=smoothing_kernel)
@@ -82,7 +83,10 @@ cfg.num_variables = pdf_volume.shape[0]*pdf_volume.shape[1]
 cfg.min_measurement = 0
 cfg.measurement_range = np.linspace(cfg.min_measurement, cfg.max_measurement-1, cfg.belief_discretisation)
 
-graph = fg.get_graph_from_pdf_hist(pdf_volume, smoothing_kernel)
+
+graph = fg.get_graph_from_pdf_hist(pdf_volume, smoothing_kernel)        # with kernel defined
+# graph = fg.get_graph_from_pdf_hist(pdf_volume)                          # with triangular/default kernel
+
 
 ''' 4.5 Save Pre-BP State '''
 
@@ -91,7 +95,11 @@ for variable in graph.variables:
     for factor in variable.neighbors:
         if factor.factor_type == "prior":
             variable.belief = factor.function
-graph_before_bp = graph
+
+initial_beliefs = {var: var.belief.copy() for var in graph.variables}
+
+
+# graph_before_bp = copy.deepcopy(graph)
 disparity_vol_pre_bp = ip.get_disparity_from_graph(graph)
 
 
@@ -110,13 +118,21 @@ graph_after_bp = graph
 
 # Show results - depth map results
 disparity_vol_post_bp = ip.get_disparity_from_graph(graph)
-cv2.imshow("Left Image", left_image)
+
+#TODO: plot all the below together, where you can click on a pixel to show its belief before and after
 gx.plot_depth_estimate(disparity_vol_post_bp, "Disparity Post-BP")
 gx.plot_depth_estimate(disparity_vol_pre_bp, "Disparity Pre-BP")
+
+# gx.interactive_pixel_inspector(disparity_vol_post_bp, cost_volume, cfg.max_measurement)
+# gx.interactive_pixel_inspector(disparity_vol_pre_bp, cost_volume, cfg.max_measurement)
+
+# Show results - gaussian heatmaps
+gx.plot_gaussian_heatmap(graph_after_bp, "Heatmap 2: Post-BP")
+# --- Temporarily restore initial beliefs for "before" plots ---
+for var, initial_belief in initial_beliefs.items():
+    var.belief = initial_belief
+gx.plot_gaussian_heatmap(graph, "Heatmap 1: Pre-BP")
+
+
+cv2.imshow("Left Image", left_image)
 plt.show()
-
-# # Show results - gaussian heatmaps
-# gx.plot_gaussian_heatmap(graph_before_bp, "Heatmap 1: Pre-BP")
-# gx.plot_gaussian_heatmap(graph_after_bp, "Heatmap 2: Post-BP")
-# plt.show()
-

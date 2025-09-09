@@ -19,7 +19,7 @@ def crop_image(image, cropped_dimensions, centre=None):
     return image[img_y_mean-(cropped_y_width//2):img_y_mean+(cropped_y_width//2), img_x_mean-(cropped_x_width//2):img_x_mean+(cropped_x_width//2)]
 
 # Get the depth cost volume from two images
-# @numba.jit(nopython=True)
+@numba.jit(nopython=True)
 def get_cost_volume(left_image, right_image, patch_size, max_disparity):
     print("Calculating cost volume...")
     
@@ -27,8 +27,8 @@ def get_cost_volume(left_image, right_image, patch_size, max_disparity):
     patch_width = int(np.sqrt(patch_size)//2)
     height, width = left_image.shape
     cost_volume = np.zeros((height, width, max_disparity))
-    # # NCC
-    # epsilon = 1e-6
+    # NCC
+    epsilon = 1e-6
 
     # Calculate the cost
     for y in range(patch_width, height-patch_width):
@@ -36,25 +36,25 @@ def get_cost_volume(left_image, right_image, patch_size, max_disparity):
             left_patch = left_image[y - patch_width : y + patch_width + 1,
                                     x - patch_width : x + patch_width + 1]
             
-            # # NCC
-            # left_mu = np.mean(left_patch)
-            # left_sigma = np.std(left_patch)
+            # NCC
+            left_mu = np.mean(left_patch)
+            left_sigma = np.std(left_patch)
 
             for d in range(max_disparity):
                 if x-d >= patch_width:
                     right_patch = right_image[y - patch_width     : y + patch_width + 1, 
                                               x - d - patch_width :  x - d + patch_width + 1]
                     
-                    # # Normalised Cross Correlation (NCC)
-                    # right_mu = np.mean(right_patch)
-                    # right_sigma = np.std(right_patch)
-                    # numerator = np.mean((left_patch-left_mu)*(right_patch-right_mu))
-                    # denominator = left_sigma*right_sigma + epsilon
-                    # ncc_score = numerator/denominator
-                    # cost = max(1-ncc_score, 0)
+                    # Normalised Cross Correlation (NCC)
+                    right_mu = np.mean(right_patch)
+                    right_sigma = np.std(right_patch)
+                    numerator = np.mean((left_patch-left_mu)*(right_patch-right_mu))
+                    denominator = left_sigma*right_sigma + epsilon
+                    ncc_score = numerator/denominator
+                    cost = max(1-ncc_score, 0)
 
-                    # NCC, OpenCV implementation
-                    ncc_score = cv2.matchTemplate(left_patch, right_patch, cv2.TM_CCOEFF_NORMED)[0,0]
+                    # # NCC, OpenCV implementation
+                    # ncc_score = cv2.matchTemplate(left_patch, right_patch, cv2.TM_CCOEFF_NORMED)[0,0]
                     cost = max(1-ncc_score, 0)
                     
                     # # Sum of Absolute Differences (SAD)

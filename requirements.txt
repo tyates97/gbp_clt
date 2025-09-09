@@ -5,3 +5,5 @@ networkx
 streamlit
 numba
 opencv-python
+plotly
+streamlit-plotly-events
