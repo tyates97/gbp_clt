@@ -31,7 +31,7 @@ belief_discretisation = 64
 
 # Distributions
 prior_width = int(belief_discretisation/2)
-smoothing_width = int(belief_discretisation)
+smoothing_width = int(belief_discretisation)//2
 min_measurement = -5
 max_measurement = 5
 measurement_range = np.linspace(min_measurement, max_measurement, belief_discretisation)
@@ -43,3 +43,8 @@ left_image = None
 right_image = None
 depth_map_raw = None
 depth_map_meters = None
+
+# Stereo Paramters
+cost_function = 'SSD'               # options: 'NCC', 'SAD', 'SSD'
+lambda_param = 0.000001                  # Cost to pdf
+smoothing_function = 'histogram'    # options: 'histogram', 'triangular' #TODO: implement option to change

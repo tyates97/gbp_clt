@@ -3,6 +3,7 @@ import numba
 import cv2
 
 import distribution_management as dm
+import config as cfg
 
 # Crop the image
 def crop_image(image, cropped_dimensions, centre=None):
@@ -20,15 +21,16 @@ def crop_image(image, cropped_dimensions, centre=None):
 
 # Get the depth cost volume from two images
 @numba.jit(nopython=True)
-def get_cost_volume(left_image, right_image, patch_size, max_disparity):
-    print("Calculating cost volume...")
+def get_cost_volume(left_img, right_img, patch_size, max_disparity, cost_function_str):
+    left_image = left_img.astype(np.int32)
+    right_image = right_img.astype(np.int32)
+    # print("Calculating cost volume...")
     
     # Crop the image
-    patch_width = int(np.sqrt(patch_size)//2)
+    patch_width = int(patch_size//2)
     height, width = left_image.shape
     cost_volume = np.zeros((height, width, max_disparity))
-    # NCC
-    epsilon = 1e-6
+    epsilon = 1e-6  # NCC
 
     # Calculate the cost
     for y in range(patch_width, height-patch_width):
@@ -46,22 +48,31 @@ def get_cost_volume(left_image, right_image, patch_size, max_disparity):
                                               x - d - patch_width :  x - d + patch_width + 1]
                     
                     # Normalised Cross Correlation (NCC)
-                    right_mu = np.mean(right_patch)
-                    right_sigma = np.std(right_patch)
-                    numerator = np.mean((left_patch-left_mu)*(right_patch-right_mu))
-                    denominator = left_sigma*right_sigma + epsilon
-                    ncc_score = numerator/denominator
-                    cost = max(1-ncc_score, 0)
-
-                    # # NCC, OpenCV implementation
-                    # ncc_score = cv2.matchTemplate(left_patch, right_patch, cv2.TM_CCOEFF_NORMED)[0,0]
-                    cost = max(1-ncc_score, 0)
+                    if cost_function_str == "NCC":
+                        right_mu = np.mean(right_patch)
+                        right_sigma = np.std(right_patch)
+                        numerator = np.mean((left_patch-left_mu)*(right_patch-right_mu))
+                        denominator = left_sigma*right_sigma + epsilon
+                        ncc_score = numerator/denominator
+                        cost = max(1-ncc_score, 0)
+                        # # NCC, OpenCV implementation
+                        # ncc_score = cv2.matchTemplate(left_patch, right_patch, cv2.TM_CCOEFF_NORMED)[0,0]
+                        # cost = max(1-ncc_score, 0)
                     
-                    # # Sum of Absolute Differences (SAD)
-                    # cost = np.sum(np.abs(left_patch-right_patch))
+                    # Sum of Absolute Differences (SAD)
+                    elif cost_function_str == "SAD":
+                        cost = np.sum(np.abs(left_patch-right_patch))
                     
-                    # # Sum of Squared Differences (SSD)
-                    # cost = np.sum(np.square(left_patch-right_patch))
+                    # Sum of Squared Differences (SSD)
+                    elif cost_function_str == "SSD":
+                        # if (y == 193) and (x == 225) and (d == 45):
+                        #     print(f'patch_size: {patch_size}')
+                        #     print(f"left_patch dtype: {left_patch.dtype}")
+                        #     print(f"right_patch dtype: {right_patch.dtype}")
+                        #     print(f"difference: {left_patch - right_patch}")
+                        #     print(f"squared difference: {(left_patch - right_patch)**2}")
+                        #     print(f"sum check: {np.sum((left_patch - right_patch)**2)}")
+                        cost = np.sum(np.square(left_patch-right_patch))
 
                     cost_volume[y,x,d] = cost
     
@@ -71,7 +82,7 @@ def get_cost_volume(left_image, right_image, patch_size, max_disparity):
 def get_pdfs_from_costs(cost_volume):
     print("Converting cost volume to pdf volume...")
     height,width,_ = cost_volume.shape
-    lambda_param = 5.0             # TUNING
+    lambda_param = cfg.lambda_param
     pdf_volume = np.zeros(cost_volume.shape)
 
     for y in range(height):
