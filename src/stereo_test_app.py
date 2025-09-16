@@ -97,7 +97,7 @@ def calculate_distributional_variance(pdf_volume):
 
     return variance_vol
 
-def create_coordinate_selector(image_data, title, key_prefix, cmap="gray", global_min=None, global_max=None):
+def create_image_coordinate_selector(image_data, title, key_prefix, cmap="gray", global_min=None, global_max=None):
     """Create a coordinate selector with image display and slider controls, with overlay point"""
     st.write(f"**{title}**")
     
@@ -126,6 +126,7 @@ def create_coordinate_selector(image_data, title, key_prefix, cmap="gray", globa
         fig = px.imshow(image_data, color_continuous_scale=cmap)
     else:
         fig = px.imshow(image_data, color_continuous_scale=cmap, zmin=global_min, zmax=global_max)
+
     
     # Add a red point at the selected coordinates
     fig.add_trace(go.Scatter(
@@ -153,6 +154,111 @@ def create_coordinate_selector(image_data, title, key_prefix, cmap="gray", globa
     
     # Remove the color scale bar (grayscale legend)
     fig.update_coloraxes(showscale=False)
+
+    # Display the interactive plot
+    st.plotly_chart(fig, use_container_width=True, key=f"coord_selector_{key_prefix}")
+    
+    return x_coord, y_coord
+
+
+def create_coordinate_selector(image_data, title, key_prefix, cmap="gray", global_min=None, global_max=None):
+    """Create a coordinate selector with image display and slider controls, with overlay point"""
+    st.write(f"**{title}**")
+
+    # defining the colour scale
+    excellent_threshold = 0.001      # Very Gaussian (green)
+    good_threshold = 0.01           # Reasonably Gaussian
+    poor_threshold = 0.05           # Somewhat non-Gaussian (yellow)
+    bad_threshold = 0.2             # Non-Gaussian (orange)
+
+    clamped_data = np.clip(image_data, 0, 1) # clamp max to 1 for display
+
+    custom_colorscale = [
+        [0.0, "green"],                                    # 0.0 = perfect (green)
+        [excellent_threshold/1.0, "green"],               # 0.001 = still green  
+        [good_threshold/1.0, "lightgreen"],               # 0.01 = light green
+        [poor_threshold/1.0, "yellow"],                   # 0.05 = yellow
+        [bad_threshold/1.0, "orange"],                    # 0.5 = orange
+        [1.0, "red"]                                      # 1.0 = red
+    ]
+    
+    # Create sliders for coordinate selection
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        x_coord = st.slider(
+            "X coordinate", 
+            min_value=0, 
+            max_value=image_data.shape[1]-1, 
+            value=image_data.shape[1]//2,
+            key=f"{key_prefix}_x"
+        )
+    
+    with col2:
+        y_coord = st.slider(
+            "Y coordinate", 
+            min_value=0, 
+            max_value=image_data.shape[0]-1, 
+            value=image_data.shape[0]//2,
+            key=f"{key_prefix}_y"
+        )
+    
+    # if global_min is None and global_max is None:
+    #     fig = px.imshow(image_data, color_continuous_scale=cmap)
+    # else:
+    #     fig = px.imshow(image_data, color_continuous_scale=cmap, zmin=global_min, zmax=global_max)
+    
+    # Create the heatmap with fixed scale
+    fig = px.imshow(
+        clamped_data,
+        color_continuous_scale=custom_colorscale,  # Red=high KL, Green=low KL
+        zmin=0,
+        zmax=1.0,  # Fixed maximum
+        title=title,
+        labels=dict(x="X", y="Y", color="KL Divergence")
+    )
+    
+    # Add interpretation markers to colorbar
+    fig.update_coloraxes(
+        colorbar=dict(
+            title="KL Divergence<br>(Lower = More Gaussian)",
+            # titleside="right",
+            thickness=20,
+            len=0.7,
+            tickvals=[0, excellent_threshold, good_threshold, poor_threshold, bad_threshold, 1.0],
+            # ticktext=['0<br>Perfect', f'{excellent_threshold}<br>Excellent', 
+                    #  f'{good_threshold}<br>Good', f'{poor_threshold}<br>Poor',
+                    #  f'{bad_threshold}<br>Bad', '1.0+<br>Very Bad']
+        )
+    )
+
+    
+    # Add a red point at the selected coordinates
+    fig.add_trace(go.Scatter(
+        x=[x_coord],
+        y=[y_coord],
+        mode='markers',
+        marker=dict(
+            size=15,
+            color='red',
+            symbol='circle',
+            line=dict(color='white', width=2)
+        ),
+        name=f'Selected Point ({x_coord}, {y_coord})',
+        showlegend=False
+    ))
+    
+    fig.update_layout(
+        title=f"Selected: ({x_coord}, {y_coord})",
+        xaxis_title="X",
+        yaxis_title="Y",
+        height=500,
+        width=500,
+        showlegend=False
+    )
+    
+    # Remove the color scale bar (grayscale legend)
+    # fig.update_coloraxes(showscale=False)
 
     # Display the interactive plot
     st.plotly_chart(fig, use_container_width=True, key=f"coord_selector_{key_prefix}")
@@ -291,6 +397,7 @@ def plot_pixel_belief_with_gaussian(graph, x, y, measurement_range):
 # Update the belief plotting function to use KL:
 def plot_pixel_belief_with_gaussian_kl(graph, x, y, measurement_range):
     """Plot pixel belief with optimal Gaussian overlay using KL divergence"""
+    
     if not hasattr(graph, 'grid_cols'):
         return None
         
@@ -462,7 +569,7 @@ def main():
     
     with col1:
         # Use the coordinate selector with overlay
-        x_coord, y_coord = create_coordinate_selector(left_image, "Left Image - Use sliders to select coordinates for cost inspection", "cost", cmap="gray")
+        x_coord, y_coord = create_image_coordinate_selector(left_image, "Left Image - Use sliders to select coordinates for cost inspection", "cost", cmap="gray")
     
     with col2:
         # Calculate and display variance heatmap
