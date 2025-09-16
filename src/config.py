@@ -27,16 +27,19 @@ max_subplots = 12
 
 # Loopy BP
 num_iterations = 10
-belief_discretisation = 64
 
 # Distributions
-prior_width = int(belief_discretisation/2)
-smoothing_width = int(belief_discretisation)//2
-min_measurement = -5
-max_measurement = 5
-measurement_range = np.linspace(min_measurement, max_measurement, belief_discretisation)
+# min_measurement = -5
+# max_measurement = 5
+min_measurement = 0
+max_measurement = 52
+measurement_range = np.arange(min_measurement, max_measurement, 0.25)
+belief_discretisation = len(measurement_range)
+
 random_seed = 42
 rng = np.random.default_rng(seed=42)
+prior_width = int(max_measurement/2)
+smoothing_width = int(max_measurement)//2
 
 # Real Data
 left_image = None
@@ -46,5 +49,5 @@ depth_map_meters = None
 
 # Stereo Paramters
 cost_function = 'SSD'               # options: 'NCC', 'SAD', 'SSD'
-lambda_param = 0.000001                  # Cost to pdf
-smoothing_function = 'histogram'    # options: 'histogram', 'triangular' #TODO: implement option to change
+lambda_param = 0.002000                  # Cost to pdf
+smoothing_function = 'triangular'    # options: 'histogram', 'triangular' #TODO: implement option to change

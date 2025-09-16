@@ -98,60 +98,82 @@ def optimise_gaussian(target_belief, measurement_range):
     return min_mse, optimal_sigma, optimal_mean
 
 
-@numba.jit(nopython=True, parallel=True)
-def _calculate_all_mses(all_beliefs, measurement_range):
-    """
-    Calculates the best-fit Gaussian MSE for all beliefs in parallel.
-    Operates only on NumPy arrays.
-    """
-    num_variables = all_beliefs.shape[0]
-    mse_values_flat = np.zeros(num_variables)
+# @numba.jit(nopython=True, parallel=True)
+# def _calculate_all_mses(all_beliefs, measurement_range):
+#     """
+#     Calculates the best-fit Gaussian MSE for all beliefs in parallel.
+#     Operates only on NumPy arrays.
+#     """
+#     num_variables = all_beliefs.shape[0]
+#     mse_values_flat = np.zeros(num_variables)
 
-    # Using prange for parallel execution
-    for i in numba.prange(num_variables):
-        min_mse, _, _ = optimise_gaussian(all_beliefs[i, :], measurement_range)
-        mse_values_flat[i] = min_mse
+#     # Using prange for parallel execution
+#     for i in numba.prange(num_variables):
+#         min_mse, _, _ = optimise_gaussian(all_beliefs[i, :], measurement_range)
+#         mse_values_flat[i] = min_mse
         
-    return mse_values_flat
+#     return mse_values_flat
+
+
+# def get_mse_from_graph(graph):
+#     # num_variables = len(graph.variables)
+#     # width = graph.grid_cols
+#     # height = int(np.ceil(num_variables/width))
+    
+#     # mse_values = np.zeros((height, width))
+
+#     # for i, variable in enumerate(graph.variables):
+#     #     min_mse,_,_ = optimise_gaussian(variable.belief, cfg.measurement_range)
+#     #     row = i // graph.grid_cols
+#     #     col = i % graph.grid_cols
+#     #     mse_values[row][col] = min_mse
+    
+#     # return mse_values
+#     """
+#     Orchestrator function to calculate the MSE for every variable's belief.
+#     It extracts data into NumPy arrays and calls the fast Numba helper.
+#     """
+#     print("Calculating best-fit Gaussian for each variable...")
+#     num_variables = len(graph.variables)
+#     width = graph.grid_cols
+#     height = int(np.ceil(num_variables / width))
+    
+#     # 1. Extract all beliefs into a single NumPy array
+#     discretisation = len(graph.variables[0].belief)
+#     all_beliefs = np.empty((num_variables, discretisation), dtype=np.float64)
+#     for i, variable in enumerate(graph.variables):
+#         all_beliefs[i, :] = variable.belief
+
+#     # 2. Call the fast, parallel Numba function
+#     mse_values_flat = _calculate_all_mses(all_beliefs, cfg.measurement_range)
+    
+#     # 3. Reshape the flat results back into a 2D grid
+#     mse_values = mse_values_flat.reshape((height, width))
+    
+#     return mse_values
+
 
 
 def get_mse_from_graph(graph):
-    # num_variables = len(graph.variables)
-    # width = graph.grid_cols
-    # height = int(np.ceil(num_variables/width))
-    
-    # mse_values = np.zeros((height, width))
-
-    # for i, variable in enumerate(graph.variables):
-    #     min_mse,_,_ = optimise_gaussian(variable.belief, cfg.measurement_range)
-    #     row = i // graph.grid_cols
-    #     col = i % graph.grid_cols
-    #     mse_values[row][col] = min_mse
-    
-    # return mse_values
     """
-    Orchestrator function to calculate the MSE for every variable's belief.
-    It extracts data into NumPy arrays and calls the fast Numba helper.
+    Calculate MSE for every variable's belief without Numba parallel processing.
     """
     print("Calculating best-fit Gaussian for each variable...")
     num_variables = len(graph.variables)
     width = graph.grid_cols
     height = int(np.ceil(num_variables / width))
     
-    # 1. Extract all beliefs into a single NumPy array
-    discretisation = len(graph.variables[0].belief)
-    all_beliefs = np.empty((num_variables, discretisation), dtype=np.float64)
-    for i, variable in enumerate(graph.variables):
-        all_beliefs[i, :] = variable.belief
+    mse_values = np.zeros((height, width))
 
-    # 2. Call the fast, parallel Numba function
-    mse_values_flat = _calculate_all_mses(all_beliefs, cfg.measurement_range)
-    
-    # 3. Reshape the flat results back into a 2D grid
-    mse_values = mse_values_flat.reshape((height, width))
+    for i, variable in enumerate(graph.variables):
+        # print(f"variable belief type: {type(variable.belief)}, shape: {variable.belief.shape}")
+        # print(f"measurement range: {type(cfg.measurement_range)}, shape: {cfg.measurement_range.shape}")
+        min_mse, _, _ = optimise_gaussian(variable.belief, cfg.measurement_range)
+        row = i // graph.grid_cols
+        col = i % graph.grid_cols
+        mse_values[row][col] = min_mse
     
     return mse_values
-
 
 
 
@@ -198,3 +220,60 @@ def find_all_nearest_priors(graph):
 
 def find_nearest_prior(variable, graph):
     return find_all_nearest_priors(graph).get(variable.name)
+
+
+
+@numba.jit(nopython=True)
+def kl_divergence_numba(p, q):
+    """KL divergence between belief p and Gaussian q"""
+    epsilon = 1e-10
+    kl = 0.0
+    for i in range(p.shape[0]):
+        p_i = max(p[i], epsilon)
+        q_i = max(q[i], epsilon)
+        kl += p_i * np.log(p_i / q_i)
+    return kl
+
+@numba.jit(nopython=True)
+def optimise_gaussian_kl(target_belief, measurement_range):
+    """Find Gaussian that minimizes KL divergence from target_belief"""
+    sigma_min = 0.25
+    sigma_max = (measurement_range[-1] - measurement_range[0]) / 4.0
+    num_sigma_steps = 100
+    
+    optimal_mean = np.sum(measurement_range * target_belief)
+    sigma_search_values = np.linspace(sigma_min, sigma_max, num_sigma_steps)
+    min_kl = float('inf')
+    optimal_sigma = None
+        
+    for sigma_candidate in sigma_search_values:
+        y_gauss = create_gaussian_distribution(measurement_range, sigma_candidate, mu=optimal_mean)
+        current_kl = kl_divergence_numba(target_belief, y_gauss)
+
+        if np.isnan(current_kl):
+            continue
+
+        if current_kl < min_kl:
+            min_kl = current_kl
+            optimal_sigma = sigma_candidate
+
+    return min_kl, optimal_sigma, optimal_mean
+
+def get_kl_from_graph(graph):
+    """
+    Calculate KL divergence for every variable's belief.
+    """
+    print("Calculating KL divergence for each variable...")
+    num_variables = len(graph.variables)
+    width = graph.grid_cols
+    height = int(np.ceil(num_variables / width))
+    
+    kl_values = np.zeros((height, width))
+
+    for i, variable in enumerate(graph.variables):
+        min_kl, _, _ = optimise_gaussian_kl(variable.belief, cfg.measurement_range)
+        row = i // graph.grid_cols
+        col = i % graph.grid_cols
+        kl_values[row][col] = min_kl
+    
+    return kl_values

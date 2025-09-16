@@ -185,7 +185,7 @@ import numba
 # Local modules
 import distribution_management as dm
 
-# @numba.jit(nopython=True)
+@numba.jit(nopython=True)
 def _run_bp_numba(num_iterations, discretisation,
                   factor_to_var_msgs, var_to_factor_msgs, beliefs,
                   factor_connections, var_neighbors, factor_functions, priors, prior_indices,
@@ -205,34 +205,53 @@ def _run_bp_numba(num_iterations, discretisation,
         factor_to_var_msgs[prior_factor_idx, 0, :] = priors[i]
 
     for iteration in range(num_iterations):
-        print(f"BP Stage 2: Running iteration {iteration+1}/{num_iterations}...")   
-        ### STEP 1: Update messages from variables to factors (using message division)
+        # print(f"BP Stage 2: Running iteration {iteration+1}/{num_iterations}...")   
+        # ### STEP 1: Update messages from variables to factors (using message division)
+        # for i in range(num_variables):
+        #     # Calculate the product of all incoming messages to this variable
+        #     product_of_incoming = np.ones(discretisation)
+        #     for j in range(var_neighbors.shape[1]):
+        #         factor_idx = var_neighbors[i, j]
+        #         if factor_idx == -1: break
+                
+        #         # Find the message from this factor to variable i
+        #         factor_n_idx = var_neighbor_to_factor_neighbor_idx[i, j]
+        #         product_of_incoming *= factor_to_var_msgs[factor_idx, factor_n_idx, :]
+
+        #     # Calculate outgoing message to each neighbor by dividing the total product
+        #     # by the message that came from that neighbor.
+        #     for j in range(var_neighbors.shape[1]):
+        #         factor_idx = var_neighbors[i, j]
+        #         if factor_idx == -1: break
+
+        #         factor_n_idx = var_neighbor_to_factor_neighbor_idx[i, j]
+        #         incoming_msg = factor_to_var_msgs[factor_idx, factor_n_idx, :]
+                
+        #         # Avoid division by zero
+        #         outgoing_msg = np.ones(discretisation)
+        #         for k in range(discretisation):
+        #             if incoming_msg[k] > 1e-8:
+        #                 outgoing_msg[k] = product_of_incoming[k] / incoming_msg[k]
+                
+        #         s = np.sum(outgoing_msg)
+        #         if s > 0:
+        #             var_to_factor_msgs[i, j, :] = outgoing_msg / s
+        ### STEP 1: Update messages from variables to factors (direct computation)
         for i in range(num_variables):
-            # Calculate the product of all incoming messages to this variable
-            product_of_incoming = np.ones(discretisation)
             for j in range(var_neighbors.shape[1]):
                 factor_idx = var_neighbors[i, j]
                 if factor_idx == -1: break
                 
-                # Find the message from this factor to variable i
-                factor_n_idx = var_neighbor_to_factor_neighbor_idx[i, j]
-                product_of_incoming *= factor_to_var_msgs[factor_idx, factor_n_idx, :]
-
-            # Calculate outgoing message to each neighbor by dividing the total product
-            # by the message that came from that neighbor.
-            for j in range(var_neighbors.shape[1]):
-                factor_idx = var_neighbors[i, j]
-                if factor_idx == -1: break
-
-                factor_n_idx = var_neighbor_to_factor_neighbor_idx[i, j]
-                incoming_msg = factor_to_var_msgs[factor_idx, factor_n_idx, :]
-                
-                # Avoid division by zero
+                # Compute message by multiplying all OTHER incoming messages
                 outgoing_msg = np.ones(discretisation)
-                for k in range(discretisation):
-                    if incoming_msg[k] > 1e-8:
-                        outgoing_msg[k] = product_of_incoming[k] / incoming_msg[k]
+                for k in range(var_neighbors.shape[1]):
+                    other_factor_idx = var_neighbors[i, k]
+                    if other_factor_idx == -1: break
+                    if other_factor_idx != factor_idx:  # Skip the target factor
+                        other_factor_n_idx = var_neighbor_to_factor_neighbor_idx[i, k]
+                        outgoing_msg *= factor_to_var_msgs[other_factor_idx, other_factor_n_idx, :]
                 
+                # Normalize
                 s = np.sum(outgoing_msg)
                 if s > 0:
                     var_to_factor_msgs[i, j, :] = outgoing_msg / s

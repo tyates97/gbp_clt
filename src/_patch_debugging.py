@@ -21,7 +21,8 @@ def calculate_distributional_variance(pdf_volume):
     variance_vol = np.zeros((height, width))
 
     # The x-values of our distribution (i.e., the disparity values)
-    disparity_values = np.arange(max_disparity)
+    # disparity_values = np.arange(max_disparity)
+    disparity_values = cfg.measurement_range
 
     for y in range(height):
         for x in range(width):
@@ -37,10 +38,10 @@ def calculate_distributional_variance(pdf_volume):
             variance = mean_sq - (mean**2)
             variance_vol[y, x] = variance
 
-            if y == 187 and x == 260:
-                print(f"mean: {mean}")
-                print(f"mean of squares: {mean_sq}")
-                print(f"variance: {variance}")
+            # if y == 187 and x == 260:
+                # print(f"mean: {mean}")
+                # print(f"mean of squares: {mean_sq}")
+                # print(f"variance: {variance}")
 
     # print(f"variance volume shape: {variance_vol.shape}")
     # print(f"max variance: {np.max(variance_vol)}")
@@ -175,7 +176,7 @@ def create_image_patch_selector(image_data, title, key_prefix, patch_size, dispa
         patch, 
         color_continuous_scale='gray',
         zmin=0,  # Set minimum value to 0
-        zmax=255,  # Set maximum value to 255 (assuming 8-bit images)
+        zmax=64,  # Set maximum value to 255 (assuming 8-bit images)
         title=f"Patch {patch_size}×{patch_size}"
     )
     
@@ -240,10 +241,20 @@ def load_images():
         left_ground_truth_filename = "disp2.png"
 
         # Load the images
-        left_image = cv2.imread(image_dir + left_image_filename, cv2.IMREAD_GRAYSCALE)
-        right_image = cv2.imread(image_dir + right_image_filename, cv2.IMREAD_GRAYSCALE)
-        ground_truth = cv2.imread(image_dir + left_ground_truth_filename, cv2.IMREAD_GRAYSCALE)
+        left_image = cv2.imread(image_dir + left_image_filename, cv2.IMREAD_GRAYSCALE)/4
+        right_image = cv2.imread(image_dir + right_image_filename, cv2.IMREAD_GRAYSCALE)/4
+        ground_truth = cv2.imread(image_dir + left_ground_truth_filename, cv2.IMREAD_GRAYSCALE)/4
         
+        # resizing for faster processing
+        left_image = ip.crop_image(left_image, (150, 200))
+        right_image = ip.crop_image(right_image, (150, 200))
+        ground_truth = ip.crop_image(ground_truth, (150, 200))
+
+
+        cfg.max_measurement = int(np.ceil(np.max(ground_truth)))
+        # print("test")
+        # print(f"max disparity in ground truth: {np.max(ground_truth)/4}")
+
         if left_image is None or right_image is None or ground_truth is None:
             st.error("Could not load images. Please check the file paths.")
             return None, None, None
@@ -268,7 +279,7 @@ def plot_pixel_data(data_volume, x, y, title, x_label="Index", y_label="Value", 
         
         fig = go.Figure()
         fig.add_trace(go.Scatter(
-            x=list(range(len(pixel_data))),
+            x=np.linspace(cfg.min_measurement, cfg.max_measurement, data_volume.shape[2]),
             y=pixel_data,
             mode='lines+markers',
             name='Data',
@@ -278,13 +289,20 @@ def plot_pixel_data(data_volume, x, y, title, x_label="Index", y_label="Value", 
         
         # Highlight the selected disparity if provided
         if highlight_disparity is not None and highlight_disparity < len(pixel_data):
-            fig.add_trace(go.Scatter(
-                x=[highlight_disparity],
-                y=[pixel_data[highlight_disparity]],
-                mode='markers',
-                name=f'Current Disparity ({highlight_disparity})',
-                marker=dict(color='red', size=12, symbol='circle')
-            ))
+            # Find the closest index in measurement_range to highlight_disparity
+            disparity_idx = np.argmin(np.abs(cfg.measurement_range - highlight_disparity))
+            
+            if disparity_idx < len(pixel_data):
+                fig.add_trace(go.Scatter(
+                    x = [cfg.measurement_range[disparity_idx]],
+                    y = [pixel_data[disparity_idx]],
+                    
+                    # x=[highlight_disparity],
+                    # y=[pixel_data[highlight_disparity]],
+                    mode='markers',
+                    name=f'Current Disparity ({highlight_disparity})',
+                    marker=dict(color='red', size=12, symbol='circle')
+                ))
         
         fig.update_layout(
             title=f"{title} at Pixel (x={x}, y={y})",
@@ -298,12 +316,15 @@ def plot_pixel_data(data_volume, x, y, title, x_label="Index", y_label="Value", 
         return fig
     return None
 
+
 def main():
     st.title("🔍 Stereo Vision Belief Propagation Interactive App")
     st.sidebar.title("Controls")
-    
+    # print(f"here0: {cfg.max_measurement}")
+
     # Load images
-    left_image, right_image, _ = load_images()
+    left_image, right_image, ground_truth = load_images()
+    # print(f"here1: {cfg.max_measurement}")
     
     if left_image is None:
         st.stop()
@@ -323,10 +344,10 @@ def main():
                                         index=['NCC', 'SAD', 'SSD'].index(getattr(cfg, 'cost_function', 'SSD'))
                                         )
     selected_lambda_param = st.sidebar.number_input("Lambda (λ)", 
-                                        min_value=0.000001, 
-                                        max_value=10.0000, 
-                                        value=getattr(cfg, 'lambda_param', 0.000001), 
-                                        step=0.000001,
+                                        min_value=0.00000001, 
+                                        max_value=10.00000000, 
+                                        value=getattr(cfg, 'lambda_param', 0.00200000), 
+                                        step=0.00000001,
                                         format="%.8f"
                                         )
 
@@ -370,27 +391,29 @@ def main():
         cfg.lambda_param = 1.0
     
     # Set up configuration
-    cfg.max_measurement = 64
-    cfg.belief_discretisation = cfg.max_measurement
     cfg.min_measurement = 0
-    cfg.measurement_range = np.linspace(cfg.min_measurement, cfg.max_measurement-1, cfg.belief_discretisation)
-    cfg.num_iterations = num_iterations
+    cfg.max_measurement = int(np.ceil(np.max(ground_truth)))
+    cfg.measurement_range = np.arange(cfg.min_measurement, cfg.max_measurement+0.25, 0.25)
+    cfg.belief_discretisation = len(cfg.measurement_range)
     
     # Compute cost and PDF volumes
     with st.spinner("Computing cost volume..."):
-        cost_volume = compute_cost_volume(left_image, right_image, patch_size, cfg.belief_discretisation, cfg.cost_function)
+        cost_volume = compute_cost_volume(left_image, right_image, patch_size, cfg.max_measurement, cfg.cost_function)
+    # print(cfg.max_measurement)
+    # print(cost_volume.shape)
     
     with st.spinner("Converting costs to PDFs..."):
         pdf_volume = compute_pdf_volume(cost_volume, cfg.lambda_param)
-    
+
     # Interactive cost function inspector
     st.header("💰 Cost Function Inspector")
     
     # Add disparity slider at the top
+    # print(f"here3: {cfg.max_measurement}")
     disparity = st.slider(
         "Disparity for Right Image Patch", 
         min_value=0, 
-        max_value=cfg.belief_discretisation-1, 
+        max_value=cfg.max_measurement, 
         value=0,
         key="main_disparity",
         help="Shift the right patch horizontally to see different disparity comparisons"
@@ -442,7 +465,7 @@ def main():
             y_left, 
             "Cost Function", 
             "Disparity", 
-            "Cost", 
+            "Cost",
             highlight_disparity=disparity
         )
         if cost_plot:
@@ -460,7 +483,7 @@ def main():
             y_left, 
             "Probability Distribution", 
             "Disparity", 
-            "Probability", 
+            "Probability",
             highlight_disparity=disparity
         )
         if pdf_plot:

@@ -2,16 +2,16 @@ import streamlit as st
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-import copy
-import io
+# import copy
+# import io
 import sys
-from contextlib import redirect_stdout
+# from contextlib import redirect_stdout
 import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
 import threading
-import time
-import queue
+# import time
+# import queue
 
 # Import your modules (assuming they're in the same directory)
 import config as cfg
@@ -20,12 +20,12 @@ import distribution_management as dm
 import belief_propagation as bp
 import optimisation as opt
 import image_processing as ip
-import graphics as gx
+# import graphics as gx
 
 # Configure Streamlit page
 st.set_page_config(
     page_title="Stereo Vision Belief Propagation",
-    page_icon="📸",
+    page_icon="🔸",
     layout="wide"
 )
 
@@ -69,7 +69,8 @@ def calculate_distributional_variance(pdf_volume):
     variance_vol = np.zeros((height, width))
 
     # The x-values of our distribution (i.e., the disparity values)
-    disparity_values = np.arange(max_disparity)
+    # disparity_values = np.arange(max_disparity)
+    disparity_values = cfg.measurement_range
 
     for y in range(height):
         for x in range(width):
@@ -85,9 +86,18 @@ def calculate_distributional_variance(pdf_volume):
             variance = mean_sq - (mean**2)
             variance_vol[y, x] = variance
 
+            # if y == 187 and x == 260:
+                # print(f"mean: {mean}")
+                # print(f"mean of squares: {mean_sq}")
+                # print(f"variance: {variance}")
+
+    # print(f"variance volume shape: {variance_vol.shape}")
+    # print(f"max variance: {np.max(variance_vol)}")
+    # print(f"max variance: {np.max(variance_vol)}")
+
     return variance_vol
 
-def create_coordinate_selector(image_data, title, key_prefix, cmap="gray"):
+def create_coordinate_selector(image_data, title, key_prefix, cmap="gray", global_min=None, global_max=None):
     """Create a coordinate selector with image display and slider controls, with overlay point"""
     st.write(f"**{title}**")
     
@@ -112,7 +122,10 @@ def create_coordinate_selector(image_data, title, key_prefix, cmap="gray"):
             key=f"{key_prefix}_y"
         )
     
-    fig = px.imshow(image_data, color_continuous_scale=cmap)
+    if global_min is None and global_max is None:
+        fig = px.imshow(image_data, color_continuous_scale=cmap)
+    else:
+        fig = px.imshow(image_data, color_continuous_scale=cmap, zmin=global_min, zmax=global_max)
     
     # Add a red point at the selected coordinates
     fig.add_trace(go.Scatter(
@@ -157,10 +170,19 @@ def load_images():
         left_ground_truth_filename = "disp2.png"
 
         # Load the images
-        left_image = cv2.imread(image_dir + left_image_filename, cv2.IMREAD_GRAYSCALE)
-        right_image = cv2.imread(image_dir + right_image_filename, cv2.IMREAD_GRAYSCALE)
-        ground_truth = cv2.imread(image_dir + left_ground_truth_filename, cv2.IMREAD_GRAYSCALE)
+        left_image = cv2.imread(image_dir + left_image_filename, cv2.IMREAD_GRAYSCALE)/4
+        right_image = cv2.imread(image_dir + right_image_filename, cv2.IMREAD_GRAYSCALE)/4
+        ground_truth = cv2.imread(image_dir + left_ground_truth_filename, cv2.IMREAD_GRAYSCALE)/4
         
+        # reszing for faster processing
+        left_image = ip.crop_image(left_image, (150, 200))
+        right_image = ip.crop_image(right_image, (150, 200))
+        ground_truth = ip.crop_image(ground_truth, (150, 200))
+
+        cfg.max_measurement = int(np.ceil(np.max(ground_truth)))
+        # print("test")
+        # print(f"max disparity in ground truth: {np.max(ground_truth)/4}")
+
         if left_image is None or right_image is None or ground_truth is None:
             st.error("Could not load images. Please check the file paths.")
             return None, None, None
@@ -190,9 +212,10 @@ def plot_pixel_data(data_volume, x, y, title, x_label="Index", y_label="Value"):
         
         fig = go.Figure()
         fig.add_trace(go.Scatter(
-            x=list(range(len(pixel_data))),
+            # x=list(range(len(pixel_data))),
+            x=np.linspace(cfg.min_measurement, cfg.max_measurement, data_volume.shape[2]),
             y=pixel_data,
-            mode='lines+markers',
+            mode='lines',
             name='Data'
         ))
         
@@ -265,6 +288,52 @@ def plot_pixel_belief_with_gaussian(graph, x, y, measurement_range):
     
     return fig
 
+# Update the belief plotting function to use KL:
+def plot_pixel_belief_with_gaussian_kl(graph, x, y, measurement_range):
+    """Plot pixel belief with optimal Gaussian overlay using KL divergence"""
+    if not hasattr(graph, 'grid_cols'):
+        return None
+        
+    pixel_idx = y * graph.grid_cols + x
+    if pixel_idx >= len(graph.variables):
+        return None
+    
+    variable = graph.variables[pixel_idx]
+    belief = variable.belief
+    
+    # Calculate optimal Gaussian using KL divergence
+    min_kl, optimal_sigma, optimal_mean = opt.optimise_gaussian_kl(belief, measurement_range)
+    gaussian_fit = dm.create_gaussian_distribution(measurement_range, optimal_sigma, mu=optimal_mean)
+    
+    fig = go.Figure()
+    
+    # Plot belief
+    fig.add_trace(go.Scatter(
+        x=measurement_range,
+        y=belief,
+        mode='lines+markers',
+        name='Belief',
+        line=dict(color='blue')
+    ))
+    
+    # Plot Gaussian fit
+    fig.add_trace(go.Scatter(
+        x=measurement_range,
+        y=gaussian_fit,
+        mode='lines',
+        name=f'Gaussian Fit (σ={optimal_sigma:.2f}, KL={min_kl:.2e})',
+        line=dict(color='red', dash='dash')
+    ))
+    
+    fig.update_layout(
+        title=f"Belief vs Gaussian Fit at Pixel (x={x}, y={y})",
+        xaxis_title="Disparity",
+        yaxis_title="Probability",
+        height=400
+    )
+    
+    return fig
+
 def main():
     st.title("🔍 Stereo Vision Belief Propagation Interactive App")
     st.sidebar.title("Controls")
@@ -281,33 +350,27 @@ def main():
     
     with col1:
         st.subheader("Left Image")
-        st.image(left_image, use_container_width=True, clamp=True)
+        st.image(left_image/np.max(left_image), use_container_width=True, clamp=True)
     
     with col2:
         st.subheader("Right Image")
-        st.image(right_image, use_container_width=True, clamp=True)
+        st.image(right_image/np.max(right_image), use_container_width=True, clamp=True)
      
     # Configuration parameters
     st.sidebar.header("Parameters")
     patch_size = int(np.sqrt(st.sidebar.selectbox("Patch Size", [9, 25, 49], index=1)))
-    num_iterations = st.sidebar.slider("BP Iterations", 1, 20, 10)
+    cfg.num_iterations = st.sidebar.slider("BP Iterations", 1, 20, 10)
 
     # Store selected parameters (don't apply them yet)
     selected_cost_function = st.sidebar.selectbox("Select Cost Function", 
                                         ['NCC', 'SAD', 'SSD'], 
                                         index=['NCC', 'SAD', 'SSD'].index(getattr(cfg, 'cost_function', 'SSD'))
                                         )
-    # selected_lambda_param = st.sidebar.slider("Lambda (λ)", 
-                                        # min_value=0.01, 
-                                        # max_value=10.0, 
-                                        # value=getattr(cfg, 'lambda_param', 5.0), 
-                                        # step=0.01
-                                        # )
     selected_lambda_param = st.sidebar.number_input("Lambda (λ)", 
-                                        min_value=0.000001, 
-                                        max_value=10.0000, 
-                                        value=getattr(cfg, 'lambda_param', 0.000001), 
-                                        step=0.000001,
+                                        min_value=0.00000001, 
+                                        max_value=10.00000000, 
+                                        value=getattr(cfg, 'lambda_param', 0.00200000), 
+                                        step=0.00000001,
                                         format="%.8f"
                                         )
     selected_smoothing_kernel = st.sidebar.selectbox("Smoothing Kernel",
@@ -317,7 +380,7 @@ def main():
     if selected_smoothing_kernel != 'histogram':
         selected_smoothing_width = st.sidebar.slider("Smoothing Width", 
                                            1, 
-                                           cfg.belief_discretisation, 
+                                           cfg.max_measurement, 
                                            value=getattr(cfg, 'smoothing_width'),
                                            step=1
                                            )
@@ -331,7 +394,8 @@ def main():
 
     params_changed = (selected_cost_function != current_cost_function or 
                     selected_lambda_param != current_lambda_param or
-                    selected_smoothing_kernel != current_smoothing_kernel)
+                    selected_smoothing_kernel != current_smoothing_kernel or
+                    (selected_smoothing_kernel != 'histogram' and selected_smoothing_width != current_smoothing_width))
 
     # Show current vs selected parameters
     if params_changed:
@@ -360,6 +424,7 @@ def main():
         # Clear relevant caches to force recomputation
         compute_cost_volume.clear()
         compute_pdf_volume.clear()
+        build_factor_graph_cached.clear()
         
         # Show success message
         st.sidebar.success("✅ Parameters updated!")
@@ -371,22 +436,23 @@ def main():
     if not hasattr(cfg, 'cost_function'):
         cfg.cost_function = 'NCC'
     if not hasattr(cfg, 'lambda_param'):
-        cfg.lambda_param = 1.0
+        cfg.lambda_param = 0.002
     
     
     # Set up configuration
-    cfg.max_measurement = 64
-    cfg.belief_discretisation = cfg.max_measurement
     cfg.min_measurement = 0
-    cfg.measurement_range = np.linspace(cfg.min_measurement, cfg.max_measurement-1, cfg.belief_discretisation)
-    cfg.num_iterations = num_iterations
+    cfg.max_measurement = int(np.ceil(np.max(ground_truth)))
+    cfg.measurement_range = np.arange(cfg.min_measurement, cfg.max_measurement+0.25, 0.25)
+    cfg.belief_discretisation = len(cfg.measurement_range)
     
     # Compute cost and PDF volumes
     with st.spinner("Computing cost volume..."):
-        cost_volume = compute_cost_volume(left_image, right_image, patch_size, cfg.belief_discretisation, cfg.cost_function)
+        cost_volume = compute_cost_volume(left_image, right_image, patch_size, cfg.max_measurement, cfg.cost_function)
+        # print(f"cost volume shape: {cost_volume.shape}")
     
     with st.spinner("Converting costs to PDFs..."):
         pdf_volume = compute_pdf_volume(cost_volume, cfg.lambda_param)
+        # print(f"pdf volume shape: {pdf_volume.shape}")
     
     # Interactive cost function inspector
     st.header("💰 Cost Function Inspector")
@@ -477,7 +543,7 @@ def main():
         triangular_kernel = dm._make_default_triangular_kernel(width)
 
         # Create x-values that span from -63 to +63 (full disparity range)
-        max_disparity = cfg.belief_discretisation - 1  # 63 for belief_discretisation = 64
+        max_disparity = cfg.max_measurement - 1  # 63 for belief_discretisation = 64
         kernel_x_values = np.arange(-max_disparity, max_disparity + 1)  # -63 to +63
     
         # Create zero-padded kernel data to match the full range
@@ -531,14 +597,14 @@ def main():
         # Generate the 2D pairwise factor matrix based on selected smoothing function
         if cfg.smoothing_function == 'histogram':
             pairwise_factor_matrix = dm.create_smoothing_factor_distribution(
-                cfg.belief_discretisation, 
+                cfg.max_measurement, 
                 kernel=None, 
                 hist=histogram_kernel,
                 smoothing_function="histogram"
             )
         else:  # triangular
             pairwise_factor_matrix = dm.create_smoothing_factor_distribution(
-                cfg.belief_discretisation, 
+                cfg.max_measurement, 
                 kernel=None, 
                 hist=None,  # This will trigger the triangular kernel creation
                 smoothing_function="triangular"
@@ -633,7 +699,7 @@ def main():
         
         with col1:
             st.write("Ground Truth")
-            st.image(ground_truth, use_container_width=True, clamp=True)
+            st.image(ground_truth/np.max(ground_truth), use_container_width=True, clamp=True)
         
         with col2:
             st.write("Before BP")
@@ -648,7 +714,12 @@ def main():
             # st.image(st.session_state['disparity_vol_post_bp'], use_container_width=True, clamp=True)
                         
             fig, ax = plt.subplots()
-            ax.imshow(st.session_state['disparity_vol_post_bp'], cmap='gray', vmin=0, vmax=cfg.max_measurement)
+            ax.imshow(
+                st.session_state['disparity_vol_post_bp'],
+                cmap='gray', 
+                vmin=0, 
+                vmax=cfg.max_measurement
+            )
             ax.set_axis_off()
             st.pyplot(fig)
         
@@ -658,48 +729,54 @@ def main():
         # Restore initial beliefs for pre-BP analysis
         for var, initial_belief in initial_beliefs.items():
             var.belief = initial_belief
-        mse_pre_bp = opt.get_mse_from_graph(graph)
+        # mse_pre_bp = opt.get_mse_from_graph(graph)
+        kl_pre_bp = opt.get_kl_from_graph(graph)
 
         if 'post_bp_beliefs' in st.session_state:
             post_beliefs = st.session_state['post_bp_beliefs']
             for var, b in post_beliefs.items():
                 var.belief = b.copy()
-            mse_post_bp = opt.get_mse_from_graph(graph).copy()
+            # mse_post_bp = opt.get_mse_from_graph(graph).copy()
+            kl_post_bp = opt.get_kl_from_graph(graph).copy()
         else:
-            mse_post_bp = np.zeros_like(mse_pre_bp)
+            mse_post_bp = np.zeros_like(kl_pre_bp)
             st.info("Run Belief Propagation to generate the post-BP heatmap.")
     
+        
+        # Calculate global min/max for consistent scaling
+        global_min = min(np.min(kl_pre_bp), np.min(kl_post_bp))
+        global_max = max(np.max(kl_pre_bp), np.max(kl_post_bp))
         
         col1, col2 = st.columns(2)
         
         with col1:
-            st.write("**Pre-BP Gaussian MSE**")
+            st.write("**Pre-BP Gaussian KL Divergence**")
             
             # Coordinate selector for pre-BP with overlay
-            pre_x, pre_y = create_coordinate_selector(mse_pre_bp, "Select coordinates for Pre-BP belief analysis", "pre_bp", cmap="RdYlGn_r")
+            pre_x, pre_y = create_coordinate_selector(kl_pre_bp, "Select coordinates for Pre-BP belief analysis", "pre_bp", cmap="RdYlGn_r", global_min=global_min, global_max=global_max)
             
             # Restore post-BP state to graph
             for var, initial_belief in initial_beliefs.items():
                 var.belief = initial_belief
 
             # Automatically show belief analysis            
-            belief_fig_pre = plot_pixel_belief_with_gaussian(graph, pre_x, pre_y, cfg.measurement_range)
+            belief_fig_pre = plot_pixel_belief_with_gaussian_kl(graph, pre_x, pre_y, cfg.measurement_range)
             if belief_fig_pre:
                 st.plotly_chart(belief_fig_pre, use_container_width=True)
             # Restore post-BP beliefs
             # graph = graph_after_bp
         
         with col2:
-            st.write("**Post-BP Gaussian MSE**")
+            st.write("**Post-BP Gaussian KL Divergence**")
             # Coordinate selector for post-BP with overlay
-            post_x, post_y = create_coordinate_selector(mse_post_bp, "Select coordinates for Post-BP belief analysis", "post_bp", cmap="RdYlGn_r")
+            post_x, post_y = create_coordinate_selector(kl_post_bp, "Select coordinates for Post-BP belief analysis", "post_bp", cmap="RdYlGn_r", global_min=global_min, global_max=global_max)
             
             # Restore post-BP state to graph
             for var, b in post_beliefs.items():
                 var.belief = b.copy()
             
             # Automatically show belief analysis
-            belief_fig_post = plot_pixel_belief_with_gaussian(graph, post_x, post_y, cfg.measurement_range)
+            belief_fig_post = plot_pixel_belief_with_gaussian_kl(graph, post_x, post_y, cfg.measurement_range)
             if belief_fig_post:
                 st.plotly_chart(belief_fig_post, use_container_width=True, key ="post_bp_mse")
 

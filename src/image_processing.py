@@ -29,7 +29,7 @@ def get_cost_volume(left_img, right_img, patch_size, max_disparity, cost_functio
     # Crop the image
     patch_width = int(patch_size//2)
     height, width = left_image.shape
-    cost_volume = np.zeros((height, width, max_disparity))
+    cost_volume = np.zeros((height, width, max_disparity+1))
     epsilon = 1e-6  # NCC
 
     # Calculate the cost
@@ -42,7 +42,7 @@ def get_cost_volume(left_img, right_img, patch_size, max_disparity, cost_functio
             left_mu = np.mean(left_patch)
             left_sigma = np.std(left_patch)
 
-            for d in range(max_disparity):
+            for d in range(max_disparity+1):
                 if x-d >= patch_width:
                     right_patch = right_image[y - patch_width     : y + patch_width + 1, 
                                               x - d - patch_width :  x - d + patch_width + 1]
@@ -81,14 +81,20 @@ def get_cost_volume(left_img, right_img, patch_size, max_disparity, cost_functio
 
 def get_pdfs_from_costs(cost_volume):
     print("Converting cost volume to pdf volume...")
-    height,width,_ = cost_volume.shape
+    height,width,max_disp_int = cost_volume.shape
     lambda_param = cfg.lambda_param
-    pdf_volume = np.zeros(cost_volume.shape)
+    
+    # create pdf with 0.25 discretisation
+    pdf_volume = np.zeros((height, width, cfg.belief_discretisation))
 
     for y in range(height):
         for x in range(width):
             cost = cost_volume[y,x,:]
-            pdf = np.exp(-lambda_param*cost)
+
+            integer_disparities = np.arange(max_disp_int)
+            interpolated_costs = np.interp(cfg.measurement_range, integer_disparities, cost)
+            
+            pdf = np.exp(-lambda_param*interpolated_costs)
             pdf = dm.normalise(pdf) 
             pdf_volume[y,x,:] = pdf
     return pdf_volume
@@ -104,7 +110,8 @@ def get_disparity_from_graph(graph):
         row = i // num_cols
         col = i % num_cols
 
-        MAP_disparity = np.argmax(variable.belief)
+        MAP_index = np.argmax(variable.belief)
+        MAP_disparity = cfg.measurement_range[MAP_index]
         disparity_volume[row][col] = MAP_disparity
     
     return disparity_volume

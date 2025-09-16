@@ -235,7 +235,7 @@ def _normalise_vector_inplace(vector):
 
 
 @numba.jit(nopython=True)
-def create_smoothing_factor_distribution(discretisation, kernel=None, mrange=0, hist=None, smoothing_function='histogram'):
+def create_smoothing_factor_distribution(discretisation, kernel=None, mrange=0, hist=None, smoothing_function='histogram', triangular_width=26):
     """
     Circular (periodic) pairwise factor:
       f(x1, x2) = k((x2 - x1) mod N)
@@ -253,16 +253,17 @@ def create_smoothing_factor_distribution(discretisation, kernel=None, mrange=0, 
     # if hist is not None:
     if smoothing_function == 'histogram' and hist is not None:
         base = hist.astype(np.float64)
-    # elif kernel is not None:
-        # base = kernel.astype(np.float64)
     elif smoothing_function == "triangular":
-        # default triangular width from cfg; ensure at least 1 and at most N
-        width = cfg.smoothing_width
-        if width < 1:
-            width = 1
-        if width > N:
-            width = N
+        
+        width = max(1,min(triangular_width, N))
         base = _make_default_triangular_kernel(width)
+        # # default triangular width from cfg; ensure at least 1 and at most N
+        # width = cfg.smoothing_width
+        # if width < 1:
+        #     width = 1
+        # if width > N:
+        #     width = N
+        # base = _make_default_triangular_kernel(width)
     else:
         # fallback to uniform if nothing else works
         base = np.ones(1, dtype=np.float64)
