@@ -49,5 +49,5 @@ depth_map_meters = None
 
 # Stereo Paramters
 cost_function = 'SSD'               # options: 'NCC', 'SAD', 'SSD'
-lambda_param = 0.002000                  # Cost to pdf
+lambda_param = 0.0020                  # Cost to pdf
 smoothing_function = 'triangular'    # options: 'histogram', 'triangular' #TODO: implement option to change
