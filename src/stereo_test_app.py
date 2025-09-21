@@ -466,7 +466,7 @@ def main():
     # Configuration parameters
     st.sidebar.header("Parameters")
     patch_size = int(np.sqrt(st.sidebar.selectbox("Patch Size", [9, 25, 49], index=1)))
-    cfg.num_iterations = st.sidebar.slider("BP Iterations", 1, 20, 10)
+    cfg.num_iterations = st.sidebar.slider("BP Iterations", 1, 200, 10)
 
     # Store selected parameters (don't apply them yet)
     selected_cost_function = st.sidebar.selectbox("Select Cost Function", 
@@ -703,14 +703,14 @@ def main():
     with col2:
         # Generate the 2D pairwise factor matrix based on selected smoothing function
         if cfg.smoothing_function == 'histogram':
-            pairwise_factor_matrix = dm.create_smoothing_factor_distribution(
+            pairwise_factor_matrix = dm.create_smoothing_factor_distribution_reflected(
                 cfg.max_measurement, 
                 kernel=None, 
                 hist=histogram_kernel,
                 smoothing_function="histogram"
             )
         else:  # triangular
-            pairwise_factor_matrix = dm.create_smoothing_factor_distribution(
+            pairwise_factor_matrix = dm.create_smoothing_factor_distribution_reflected(
                 cfg.max_measurement, 
                 kernel=None, 
                 hist=None,  # This will trigger the triangular kernel creation
@@ -745,6 +745,7 @@ def main():
 
     
     # Build factor graph
+    pdf_volume = pdf_volume[:, 35:] # crop the left edge with no disparity match
     cfg.num_variables = pdf_volume.shape[0] * pdf_volume.shape[1]
     
     with st.spinner("Building factor graph..."):
@@ -806,7 +807,8 @@ def main():
         
         with col1:
             st.write("Ground Truth")
-            st.image(ground_truth/np.max(ground_truth), use_container_width=True, clamp=True)
+            normalised_ground_truth = ground_truth/np.max(ground_truth)
+            st.image(normalised_ground_truth[:,35:], use_container_width=True, clamp=True)
         
         with col2:
             st.write("Before BP")

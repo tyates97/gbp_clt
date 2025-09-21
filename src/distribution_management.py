@@ -7,8 +7,6 @@ import matplotlib.pyplot as plt
  # Internal modules
 import config as cfg
 
-# cfg.rng = np.random.default_rng(seed=42)
-
 # normalises a set of distribution values so their sum adds to 1
 @numba.jit(nopython=True)
 def normalise(distribution_values):
@@ -39,10 +37,6 @@ def normalise_rows(distribution_values):
             for j in range(m):
                 out[i, j] = distribution_values[i, j] * inv
     return out
-# def normalise_rows(distribution_values):
-#     row_sums = np.sum(distribution_values, axis=1, keepdims=True)
-#     row_sums[row_sums == 0] = 1.0
-#     return distribution_values / row_sums
 
 
 # creates a gaussian distribution
@@ -52,22 +46,6 @@ def create_gaussian_distribution(x, sigma, mu=0):
     coef = 1 / (np.sqrt(2 * np.pi) * sigma)
     exponent = -((x - mean) ** 2) / (2 * sigma ** 2)
     return normalise(coef * np.exp(exponent))
-
-# def downsample_variance(distribution, target_width):
-#     max_width = len(distribution)
-#     current_width = np.count_nonzero(distribution)
-#     adjusted_distribution = distribution
-#     if target_width > max_width:
-#         raise ValueError("target distribution width is greater than max distribution width")
-#     if target_width < current_width:
-#         #downsampling code
-#         adjusted_distribution[0: int((len(distribution)/2)-target_width//2)] = np.zeros(int((len(distribution)/2)-target_width//2))
-#         adjusted_distribution[int((len(distribution)/2)+target_width//2+target_width%2):] = np.zeros(int((len(distribution)/2)-target_width//2-target_width%2))
-#     elif target_width >= current_width:
-#         # TODO: write below
-#         # upsampling code
-#         pass
-#     return normalise(adjusted_distribution)
 
 
 # @numba.jit(nopython=True)
@@ -94,73 +72,6 @@ def create_random_prior_distribution(x_range, mean=None, prior_width=None):
     unnormalised_prior = np.zeros(discretisation)
     unnormalised_prior[start:end] = cfg.rng.random(end-start)    
     return normalise(unnormalised_prior)
-
-
-# ''' TEST '''
-
-# # @numba.jit(nopython=True)
-# # def create_smoothing_factor_distribution(discretisation, kernel=None, mrange=cfg.measurement_range):
-# #     tau = 2  # Truncation threshold (allow jumps up to 2 disparities; tune 1-4 based on dataset)
-# #     gamma = 0.1  # Smoothness strength (tune 0.05-0.2; higher = stronger smoothing in non-truncated areas)
-    
-# #     unnormalised_factor_values = np.zeros((discretisation, discretisation))
-# #     for x1 in range(discretisation):
-# #         for x2 in range(discretisation):
-# #             diff = np.abs(x1 - x2)
-# #             cost = min(diff, tau)  # Truncated linear
-# #             unnormalised_factor_values[x1, x2] = np.exp(-gamma * cost)
-    
-# #     return normalise(unnormalised_factor_values)
-
-
-# # ''' END OF TEST '''
-
-
-# @numba.jit(nopython=True)
-# # creates a smoothing factor that encourages neighbouring variables to have the same factor
-# def create_smoothing_factor_distribution(discretisation, kernel=None, mrange=cfg.measurement_range, hist=None):
-#     extended_len = 2*discretisation-1
-#     extended_kernel = np.zeros(extended_len)
-
-#     if hist is None:
-#         x = np.linspace(-cfg.smoothing_width/2, cfg.smoothing_width/2, cfg.smoothing_width) #DEBUG potential issue here
-#         kernel = np.maximum(0, 1 - np.abs(x)/(cfg.smoothing_width/2))
-#         kernel = np.asarray(kernel)
-
-#     # If not given a histogram, create a triangular kernel favoring small disparity differences
-#     else:
-#         kernel = hist
-        
-
-#     # Place original kernel in the center of the extended kernel
-#     start_idx = (extended_len-len(kernel)) // 2
-#     extended_kernel[start_idx:start_idx+len(kernel)] = kernel
-
-#     # ## Show extended_kernel
-#     # plt.plot(range(2*cfg.belief_discretisation-1), extended_kernel)
-#     # plt.show()
-
-#     # Create pairwise factor matrix
-#     unnormalised_factor_values = np.zeros((discretisation, discretisation))
-
-#     center = extended_len//2
-#     # Fill in the factor matrix constraining variables to be similar
-#     for x1_row in range(discretisation):
-#         for x2_col in range(discretisation):
-#             diff = x2_col-x1_row
-#             idx = diff + center
-#             # if 0 <= idx < extended_len:
-#             # unnormalised_factor_values[x2_col, x1_row] = extended_kernel[idx]
-#             unnormalised_factor_values[x1_row, x2_col] = extended_kernel[idx]
-    
-#     # # DEBUGGING: Show 2d array
-#     # plt.figure()
-#     # plt.imshow(unnormalised_factor_values)
-#     # plt.figure()
-#     # plt.plot(range(2*cfg.belief_discretisation-1), extended_kernel)
-#     # plt.show()
-
-#     return normalise_rows(unnormalised_factor_values)
 
 @numba.jit(nopython=True)
 def get_histogram_from_truth(ground_truth):
@@ -233,100 +144,121 @@ def _normalise_vector_inplace(vector):
         for i in range(vector.shape[0]):
             vector[i] = uniform_val
 
+# @numba.jit(nopython=True)
+# def create_smoothing_factor_distribution(discretisation, kernel=None, mrange=0, hist=None, smoothing_function='histogram', triangular_width=26):
+#     """
+#     Reflective (mirrored) pairwise factor:
+#       f(x1, x2) = k(reflect_diff(x2 - x1, N))
+#     where k is a 1-D kernel and reflect_diff handles boundary reflection
+#     instead of wrapping.
+#     """
+#     N = discretisation
 
+#     # --- choose base 1-D kernel source (hist > kernel > default triangle)
+#     if smoothing_function == 'histogram' and hist is not None:
+#         base = hist.astype(np.float64)
+#     elif smoothing_function == "triangular":
+#         width = max(1, min(triangular_width, N))
+#         base = _make_default_triangular_kernel(width)
+#     else:
+#         # fallback to uniform if nothing else works
+#         base = np.ones(1, dtype=np.float64)
+
+#     # --- embed the base kernel on a reflected range
+#     # We need to handle both positive and negative differences with reflection
+#     max_diff = N - 1  # maximum possible difference
+#     kernel_size = 2 * max_diff + 1  # size to accommodate -max_diff to +max_diff
+#     kernel = np.zeros(kernel_size, dtype=np.float64)
+    
+#     Length = base.shape[0]
+#     centre = Length // 2
+#     kernel_centre = max_diff  # center of the new kernel array
+    
+#     for i in range(Length):
+#         diff = i - centre  # signed offset from base kernel center
+#         kernel_idx = kernel_centre + diff
+#         if 0 <= kernel_idx < kernel_size:
+#             kernel[kernel_idx] += base[i]
+
+#     # normalise k to sum 1 (robust even if base was all zeros)
+#     _normalise_vector_inplace(kernel)
+
+#     # --- build the matrix with reflection: each row uses reflected differences
+#     mat = np.empty((N, N), dtype=np.float64)
+#     for x1 in range(N):
+#         for x2 in range(N):
+#             # Calculate raw difference
+#             diff = x2 - x1
+            
+#             # # Apply reflection instead of wrapping
+#             # # Reflect differences that go beyond boundaries
+#             # if raw_diff > max_diff:
+#             #     reflected_diff = 2 * max_diff - raw_diff
+#             # elif raw_diff < -max_diff:
+#             #     reflected_diff = -2 * max_diff - raw_diff
+#             # else:
+#             #     reflected_diff = raw_diff
+            
+#             # Map to kernel index
+#             kernel_idx = kernel_centre + diff
+#             if 0 <= kernel_idx < kernel_size:
+#                 mat[x1, x2] = kernel[kernel_idx]
+#             else:
+#                 mat[x1, x2] = 0.0
+
+#     return mat
+
+
+###### Testing a reflected version instead of wraparound ######
 @numba.jit(nopython=True)
-def create_smoothing_factor_distribution(discretisation, kernel=None, mrange=0, hist=None, smoothing_function='histogram', triangular_width=26):
+def create_smoothing_factor_distribution_reflected(discretisation, kernel=None, mrange=0, hist=None, smoothing_function='histogram', triangular_width=26):
     """
-    Circular (periodic) pairwise factor:
-      f(x1, x2) = k((x2 - x1) mod N)
-    where k is a 1-D kernel:
-      - if `hist` is given, use it (1-D array) as the kernel support,
-      - elif `kernel` is given, use it (1-D array),
-      - else build a triangular kernel of width cfg.smoothing_width.
-    The returned matrix has identical row sums (each row is a rotation of k),
-    so uniform messages remain uniform; repeated BP corresponds to repeated
-    *circular* convolutions, giving the Gaussianising effect cleanly.
+    Non-circular pairwise factor with reflection at boundaries:
+      f(x1, x2) = k(x2 - x1) where k is reflected at domain boundaries
+    
+    This ensures that disparities at the edges (0 and discretisation-1) don't 
+    wrap around to each other, which makes more sense for disparity estimation.
     """
     N = discretisation
 
-    # --- choose base 1-D kernel source (hist > kernel > default triangle)
-    # if hist is not None:
+    # --- choose base 1-D kernel source (same as before)
     if smoothing_function == 'histogram' and hist is not None:
         base = hist.astype(np.float64)
     elif smoothing_function == "triangular":
-        
-        width = max(1,min(triangular_width, N))
+        width = max(1, min(triangular_width, N))
         base = _make_default_triangular_kernel(width)
-        # # default triangular width from cfg; ensure at least 1 and at most N
-        # width = cfg.smoothing_width
-        # if width < 1:
-        #     width = 1
-        # if width > N:
-        #     width = N
-        # base = _make_default_triangular_kernel(width)
     else:
-        # fallback to uniform if nothing else works
         base = np.ones(1, dtype=np.float64)
 
-    # --- embed the base kernel on a circle of length N
-    # We center `base` and wrap its mass onto a length-N circular vector k.
-    kernel = np.zeros(N, dtype=np.float64)
-    Length = base.shape[0]
-    centre = Length // 2
-    for i in range(Length):
-        diff = i - centre                # signed offset
-        kernel[(diff % N)] += base[i]  # safe modulo in nopython
-        # kernel[(diff % N + N) % N] += base[i]  # safe modulo in nopython
-
-    # normalise k to sum 1 (robust even if base was all zeros)
-    _normalise_vector_inplace(kernel)
-
-    # --- build the circulant matrix: each row is a rotation of kernel
+    # --- build the matrix with reflection at boundaries
     mat = np.empty((N, N), dtype=np.float64)
+    base_length = base.shape[0]
+    base_center = base_length // 2
+    
     for x1 in range(N):
-        # row x1: f(x1, x2) = k[(x2 - x1) mod N]
-        for x2 in range(N):
-            diff = (x2 - x1) % N
-            mat[x1, x2] = kernel[diff]
+        # Initialize row
+        row = np.zeros(N, dtype=np.float64)
+        
+        # Apply kernel centered at x1, with reflection at boundaries
+        for i in range(base_length):
+            offset = i - base_center  # signed offset from center
+            target_idx = x1 + offset
+            
+            # Handle boundaries with reflection
+            if target_idx < 0:
+                # Reflect: if we'd go to -1, go to 1 instead
+                target_idx = -target_idx
+            elif target_idx >= N:
+                # Reflect: if we'd go to N, go to N-2 instead
+                target_idx = 2 * N - 2 - target_idx
+            
+            # Clamp to valid range (in case of multiple reflections)
+            target_idx = max(0, min(N - 1, target_idx))
+            
+            row[target_idx] += base[i]
+        
+        # Normalize the row to sum to 1
+        _normalise_vector_inplace(row)
+        mat[x1, :] = row
 
     return mat
-
-
-
-# @numba.jit(nopython=True)
-# def create_smoothing_factor_distribution(discretisation,
-#                                          # New parameters for our edge-aware model:
-#                                          tau=2.0,  # The "edge" threshold
-#                                          gamma=0.1, # The smoothness strength
-#                                          hist=None
-#                                          ):
-#     """
-#     Creates a pairwise smoothing factor using an edge-aware
-#     truncated linear model.
-
-#     Args:
-#         discretisation (int): The number of disparity levels.
-#         tau (float): The truncation threshold. Disparity differences
-#                      above this value are considered edges and are not
-#                      heavily penalized, preserving them.
-#         gamma (float): The smoothness strength. Controls how much
-#                        smoothing is applied to differences *below* tau.
-#     """
-#     unnormalised_factor_values = np.zeros((discretisation, discretisation), dtype=np.float64)
-
-#     for x1 in range(discretisation):
-#         for x2 in range(discretisation):
-#             diff = np.abs(x1 - x2)
-
-#             # Truncated linear cost: cost increases linearly up to tau,
-#             # then stays flat. This allows for sharp edges.
-#             cost = min(diff, tau)
-
-#             # Convert cost to a potential (probability)
-#             unnormalised_factor_values[x1, x2] = np.exp(-gamma * cost)
-
-#     return normalise_rows(unnormalised_factor_values)
-
-
-
-# ''' END TEST '''
