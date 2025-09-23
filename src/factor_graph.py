@@ -159,10 +159,10 @@ class FactorGraph:
     def add_loopy_pairwise_factors(self, num_loops, measurement_range):
         num_variables = len(self.variables)
         belief_discretisation = len(self.variables[0].belief)
-        pairwise_function = dm.create_smoothing_factor_distribution(belief_discretisation)
+        pairwise_function = dm.create_smoothing_factor_distribution_reflected(belief_discretisation)
         for i in range(num_variables):
             # add factors between adjacent variables
-            pairwise_function = dm.create_smoothing_factor_distribution(belief_discretisation)
+            pairwise_function = dm.create_smoothing_factor_distribution_reflected(belief_discretisation)
             
             # if it's a chain, connect all the variables in a line
             if i < num_variables - 1:
@@ -204,7 +204,7 @@ class FactorGraph:
                         break
                     child = variables[next_var_idx]
                     next_var_idx += 1
-                    pairwise_function = dm.create_smoothing_factor_distribution(
+                    pairwise_function = dm.create_smoothing_factor_distribution_reflected(
                         belief_discretisation, prior=dm.create_random_prior_distribution(child.belief)
                     )
                     self.add_factor([parent, child], function=pairwise_function)
@@ -271,14 +271,16 @@ class FactorGraph:
             var2 = self.variables[j]
             
             # Create a new smoothing function for each factor
-            pairwise_function = dm.create_smoothing_factor_distribution(belief_discretisation, hist=hist)
+            pairwise_function = dm.create_smoothing_factor_distribution_reflected(belief_discretisation, hist=hist)
             
             self.add_factor([var1, var2], pairwise_function)
 
+            percentage_processed = int((len(self.factors)/len(connections))*100)
+            message_percentages = [25, 50, 75, 100]
             
-            if len(self.factors) % 34000 == 0:
-                percentage_processed = int((len(self.factors)/len(connections))*100)    
+            if percentage_processed in message_percentages == 0:
                 print(f"{percentage_processed}% of pairwise factors added.")
+                message_percentages.remove(percentage_processed)
 
         print("All pairwise factors added.")
                 
