@@ -37,36 +37,36 @@ def mean_squared_error_numba(y_true, y_pred):
     return mse / y_true.shape[0]
 
 
-def optimise_q_gaussian(target_belief, measurement_range):
-    num_q_steps = 50
-    q_search_values = np.linspace(0, 3, num_q_steps)                   # q must be 0 < q < 3
+# def optimise_q_gaussian(target_belief, measurement_range):
+#     num_q_steps = 50
+#     q_search_values = np.linspace(0, 3, num_q_steps)                   # q must be 0 < q < 3
 
-    num_sigma_steps = cfg.belief_discretisation
-    sigma_search_values = np.linspace(0, cfg.belief_discretisation-1, num_sigma_steps)
+#     num_sigma_steps = cfg.belief_discretisation
+#     sigma_search_values = np.linspace(0, cfg.belief_discretisation-1, num_sigma_steps)
 
-    min_mse = float('inf')
-    optimal_q = None
-    optimal_sigma = None
+#     min_mse = float('inf')
+#     optimal_q = None
+#     optimal_sigma = None
 
-    for q_candidate in q_search_values:
-        # print('here1')
-        for sigma_candidate in sigma_search_values:
-            # print('here2')
-            if sigma_candidate <= 0:
-                continue
+#     for q_candidate in q_search_values:
+#         # print('here1')
+#         for sigma_candidate in sigma_search_values:
+#             # print('here2')
+#             if sigma_candidate <= 0:
+#                 continue
 
-            y_q_gauss = dm.create_q_gaussian_distribution(measurement_range, q_candidate, sigma_candidate)
-            current_mse = mean_squared_error_numba(target_belief, y_q_gauss)
+#             y_q_gauss = dm.create_q_gaussian_distribution(measurement_range, q_candidate, sigma_candidate)
+#             current_mse = mean_squared_error_numba(target_belief, y_q_gauss)
 
-            if np.isnan(current_mse):
-                continue
+#             if np.isnan(current_mse):
+#                 continue
 
-            if current_mse < min_mse:
-                min_mse = current_mse
-                optimal_q = q_candidate
-                optimal_sigma = sigma_candidate
+#             if current_mse < min_mse:
+#                 min_mse = current_mse
+#                 optimal_q = q_candidate
+#                 optimal_sigma = sigma_candidate
 
-    return min_mse, optimal_q, optimal_sigma
+#     return min_mse, optimal_q, optimal_sigma
 
 @numba.jit(nopython=True)
 def optimise_gaussian(target_belief, measurement_range):

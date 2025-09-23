@@ -29,17 +29,20 @@ max_subplots = 12
 num_iterations = 10
 
 # Distributions
-# min_measurement = -5
-# max_measurement = 5
-min_measurement = 0
-max_measurement = 52
-measurement_range = np.arange(min_measurement, max_measurement, 0.25)
+min_measurement = -5
+max_measurement = 5
+# min_measurement = 0
+# max_measurement = 52
+step_size = 0.25
+measurement_range = np.arange(min_measurement, max_measurement, step_size)
 belief_discretisation = len(measurement_range)
 
 random_seed = 42
 rng = np.random.default_rng(seed=42)
-prior_width = int(max_measurement/2)
-smoothing_width = int(max_measurement)//2
+# prior_width = int(max_measurement/2)
+# smoothing_width = int(max_measurement)//2
+prior_width = 20
+smoothing_width = 20
 
 # Real Data
 left_image = None

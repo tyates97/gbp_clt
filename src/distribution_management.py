@@ -211,11 +211,7 @@ def _normalise_vector_inplace(vector):
 
 ###### Testing a reflected version instead of wraparound ######
 @numba.jit(nopython=True)
-<<<<<<< HEAD
-def create_smoothing_factor_distribution(discretisation, kernel=np.ones(1, dtype=np.float64), mrange=0, hist=None, smoothing_function='triangular', triangular_width=26):
-=======
 def create_smoothing_factor_distribution_reflected(discretisation, kernel=None, mrange=0, hist=None, smoothing_function='histogram', triangular_width=26):
->>>>>>> 01dbf6152185f53051670c9fc6eb758ac83e7cad
     """
     Non-circular pairwise factor with reflection at boundaries:
       f(x1, x2) = k(x2 - x1) where k is reflected at domain boundaries
@@ -232,12 +228,8 @@ def create_smoothing_factor_distribution_reflected(discretisation, kernel=None, 
         width = max(1, min(triangular_width, N))
         base = _make_default_triangular_kernel(width)
     else:
-<<<<<<< HEAD
         # fallback to uniform if nothing else works
         base = kernel
-=======
-        base = np.ones(1, dtype=np.float64)
->>>>>>> 01dbf6152185f53051670c9fc6eb758ac83e7cad
 
     # --- build the matrix with reflection at boundaries
     mat = np.empty((N, N), dtype=np.float64)

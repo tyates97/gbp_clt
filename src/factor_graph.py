@@ -264,21 +264,32 @@ class FactorGraph:
         # 1. Call the fast helper function to get the numerical connection plan
         connections = self._calculate_grid_connections(num_variables, grid_cols)
 
+        message_percentages = [25, 50, 75, 100]
         print("Creating pairwise factors...")
         # 2. Iterate through the connection plan and create the actual factor objects
         for i, j in connections:
             var1 = self.variables[i]
             var2 = self.variables[j]
+
+            if hist is None:
+                pairwise_function = dm.create_smoothing_factor_distribution_reflected(
+                    belief_discretisation,
+                    smoothing_function='triangular',
+                    triangular_width = cfg.smoothing_width)
+            else:
+                pairwise_function = dm.create_smoothing_factor_distribution_reflected(
+                    belief_discretisation,
+                    hist=hist
+                )
             
-            # Create a new smoothing function for each factor
-            pairwise_function = dm.create_smoothing_factor_distribution_reflected(belief_discretisation, hist=hist)
+            # # Create a new smoothing function for each factor
+            # pairwise_function = dm.create_smoothing_factor_distribution_reflected(belief_discretisation, hist=hist)
             
             self.add_factor([var1, var2], pairwise_function)
 
             percentage_processed = int((len(self.factors)/len(connections))*100)
-            message_percentages = [25, 50, 75, 100]
             
-            if percentage_processed in message_percentages == 0:
+            if percentage_processed in message_percentages:
                 print(f"{percentage_processed}% of pairwise factors added.")
                 message_percentages.remove(percentage_processed)
 

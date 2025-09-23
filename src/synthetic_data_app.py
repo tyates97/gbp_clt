@@ -46,23 +46,23 @@ if cfg.graph_type == 'Grid':
 
 # Additional variables
 st.sidebar.subheader("Belief Propagation Configuration")
-cfg.num_iterations = st.sidebar.slider("Number of BP Iterations", 1, 100, cfg.num_iterations)
+cfg.num_iterations = st.sidebar.slider("Number of BP Iterations", 1, 20, cfg.num_iterations)
 cfg.belief_discretisation = st.sidebar.slider("Belief Discretisation", 8, 128, cfg.belief_discretisation, step=4)
-cfg.prior_width = st.sidebar.slider("Prior Width", 4, int(cfg.belief_discretisation/2), cfg.prior_width, step=4)
-cfg.smoothing_width = st.sidebar.slider("Smoothing Width", 4, int(cfg.belief_discretisation/2), cfg.smoothing_width, step=4)
+cfg.prior_width = st.sidebar.slider("Prior Width", 4, int(cfg.max_measurement), cfg.prior_width, step=4)
+cfg.smoothing_width = st.sidebar.slider("Smoothing Width", 4, int(cfg.max_measurement), cfg.smoothing_width, step=4)
 cfg.random_seed = st.sidebar.number_input("Random Seed", value=42, step=1)
 np.random.seed(cfg.random_seed)
 cfg.rng = np.random.default_rng(seed=cfg.random_seed)  # Update RNG with user-defined seed
 
 
-# Get disparity histogram
-image_dir = 'data/stereo/teddy/'
-left_ground_truth_filename = "disp2.png"
-ground_truth = cv2.imread(image_dir+left_ground_truth_filename, cv2.IMREAD_GRAYSCALE)
-ground_truth_signed = ground_truth.astype(np.int16)
-all_diffs = dm.get_histogram_from_truth(ground_truth_signed)
-hist, bin_edges = np.histogram(all_diffs, bins=2*cfg.belief_discretisation-1)
-smoothing_kernel = dm.normalise(hist)
+# # Get disparity histogram
+# image_dir = 'data/stereo/teddy/'
+# left_ground_truth_filename = "disp2.png"
+# ground_truth = cv2.imread(image_dir+left_ground_truth_filename, cv2.IMREAD_GRAYSCALE)
+# ground_truth_signed = ground_truth.astype(np.int16)
+# all_diffs = dm.get_histogram_from_truth(ground_truth_signed)
+# hist, bin_edges = np.histogram(all_diffs, bins=2*cfg.belief_discretisation-1)
+# smoothing_kernel = dm.normalise(hist)
 
 # Build and run
 graph = build_factor_graph(
