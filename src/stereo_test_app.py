@@ -6,6 +6,7 @@ import sys
 import plotly.graph_objects as go
 import plotly.express as px
 import threading
+import copy
 
 # Import your modules (assuming they're in the same directory)
 import config as cfg
@@ -198,16 +199,17 @@ def compute_cost_volume(left_image, right_image, patch_size, max_disparity, cost
 def compute_pdf_volume(cost_volume, lambda_param):
     return ip.get_pdfs_from_costs(cost_volume)
 
-@st.cache_resource
+@st.cache_resource()
 def build_factor_graph_cached(pdf_volume, smoothing_kernel):
     """Build and cache the factor graph"""
     return fg.get_graph_from_pdf_hist(pdf_volume, smoothing_kernel)
 
 def plot_pixel_data(data_volume, x, y, title, x_label="Index", y_label="Value"):
     """Plot data for a specific pixel"""
+
     if x < data_volume.shape[1] and y < data_volume.shape[0]:
         pixel_data = data_volume[y, x, :]
-        
+
         fig = go.Figure()
         fig.add_trace(go.Scatter(
             x=np.linspace(cfg.min_measurement, cfg.max_measurement, data_volume.shape[2]),
@@ -241,18 +243,19 @@ def create_heatmap_plot(image_data, title, colorscale='gray'):
     return fig
 
 # Update the belief plotting function to use KL:
-def plot_pixel_belief_with_gaussian(graph, x, y, measurement_range, metric="KL"):
+def plot_pixel_belief_with_gaussian(data_source, x, y, measurement_range, cols=None, metric="KL", source="graph"):
     """Plot pixel belief with optimal Gaussian overlay using KL divergence"""
-
-    if not hasattr(graph, 'grid_cols'):
-        return None
-        
-    pixel_idx = y * graph.grid_cols + x
-    if pixel_idx >= len(graph.variables):
-        return None
     
-    variable = graph.variables[pixel_idx]
-    belief = variable.belief
+    if source == "graph":
+        pixel_idx = y * data_source.grid_cols + x
+        if pixel_idx >= len(data_source.variables):
+            return None
+        variable = data_source.variables[pixel_idx]
+        belief = variable.belief
+    
+    elif source == "array":
+        idx = y*cols + x
+        belief = data_source[idx]
     
     # Calculate optimal Gaussian using KL divergence
     if metric == "KL":
@@ -406,6 +409,7 @@ def main():
     # Compute cost and PDF volumes
     with st.spinner("Computing cost volume..."):
         cost_volume = compute_cost_volume(left_image, right_image, patch_size, cfg.max_measurement, cfg.cost_function)
+        cost_volume = cost_volume[:, 35:, :]
     
     with st.spinner("Converting costs to PDFs..."):
         pdf_volume = compute_pdf_volume(cost_volume, cfg.lambda_param)
@@ -418,7 +422,7 @@ def main():
     
     with col1:
         # Use the coordinate selector with overlay
-        x_coord, y_coord = create_coordinate_selector(left_image, "Left Image - Use sliders to select coordinates for cost inspection", "cost", cmap="gray")
+        x_coord, y_coord = create_coordinate_selector(left_image[:, 35:], "Left Image - Use sliders to select coordinates for cost inspection", "cost", cmap="gray")
     
     with col2:
         # Calculate and display variance heatmap
@@ -631,7 +635,8 @@ def main():
                 variable.belief = factor.function
     
     initial_beliefs = {i: var.belief.copy() for i, var in enumerate(graph.variables)}
-    st.session_state['graph_before_bp'] = graph
+    st.session_state['beliefs_before_bp'] = initial_beliefs
+    st.session_state['kl_before_bp'] = opt.get_kl_from_graph(graph)
     disparity_vol_pre_bp = ip.get_disparity_from_graph(graph)
 
 
@@ -677,7 +682,11 @@ def main():
         console_placeholder.code("Belief propagation completed successfully!")
         
         # Store results in session state
-        st.session_state['graph_after_bp'] = result_graph
+        final_beliefs = {i: var.belief.copy() for i, var in enumerate(result_graph.variables)}
+        st.session_state['beliefs_after_bp'] = final_beliefs
+        st.session_state['kl_after_bp'] = opt.get_kl_from_graph(result_graph)
+        
+        # st.session_state['graph_after_bp'] = result_graph
         st.session_state['disparity_vol_post_bp'] = ip.get_disparity_from_graph(result_graph)
         st.session_state['bp_completed'] = True
 
@@ -694,7 +703,8 @@ def main():
         
         with col1:
             st.write("Ground Truth")
-            st.image(ground_truth/np.max(ground_truth), use_container_width=True, clamp=True)
+            normalised_ground_truth = ground_truth/np.max(ground_truth)
+            st.image(normalised_ground_truth[:, 35:], use_container_width=True, clamp=True)
         
         with col2:
             st.write("Before BP")
@@ -718,23 +728,11 @@ def main():
         
         # Interactive Gaussian heatmaps
         st.subheader("🎯 Gaussian Fit Analysis")
-        
-        graph_pre_bp = st.session_state.get('graph_before_bp')
-        graph_post_bp = st.session_state.get('graph_after_bp')
-
-        if graph_pre_bp is not None:
-            kl_pre_bp = opt.get_kl_from_graph(graph_pre_bp).copy()
-        else:
-            kl_pre_bp = np.zeros_like(disparity_vol_pre_bp)
-
-        if graph_post_bp is not None:
-            kl_post_bp = opt.get_kl_from_graph(graph_post_bp).copy()
-        else:
-            kl_post_bp = np.zeros_like(kl_pre_bp)
-            st.info("Run Belief Propagation to generate the post-BP heatmap.")
-
-        
+          
         # Calculate global min/max for consistent scaling
+        kl_pre_bp = st.session_state['kl_before_bp']
+        kl_post_bp = st.session_state['kl_after_bp']
+
         global_min = min(np.min(kl_pre_bp), np.min(kl_post_bp))
         global_max = max(np.max(kl_pre_bp), np.max(kl_post_bp))
         
@@ -742,13 +740,10 @@ def main():
         
         with col1:
             st.write("**Pre-BP Gaussian KL Divergence**")
-            
             # Coordinate selector for pre-BP with overlay
             pre_x, pre_y = create_coordinate_selector(kl_pre_bp, "Select coordinates for Pre-BP belief analysis", "pre_bp", cmap=custom_colorscale, global_min=global_min, global_max=global_max)
             
-            belief_fig_pre = None
-            if graph_pre_bp is not None:
-                belief_fig_pre = plot_pixel_belief_with_gaussian(graph_pre_bp, pre_x, pre_y, cfg.measurement_range, metric="KL")
+            belief_fig_pre = plot_pixel_belief_with_gaussian(st.session_state['beliefs_before_bp'], pre_x, pre_y, cfg.measurement_range, cols=graph.grid_cols, metric="KL", source="array")
             if belief_fig_pre:
                 st.plotly_chart(belief_fig_pre, use_container_width=True)
         
@@ -757,9 +752,7 @@ def main():
             # Coordinate selector for post-BP with overlay
             post_x, post_y = create_coordinate_selector(kl_post_bp, "Select coordinates for Post-BP belief analysis", "post_bp", cmap=custom_colorscale, global_min=global_min, global_max=global_max)
             
-            belief_fig_post = None
-            if graph_post_bp is not None:
-                belief_fig_post = plot_pixel_belief_with_gaussian(graph_post_bp, post_x, post_y, cfg.measurement_range, metric="KL")
+            belief_fig_post = plot_pixel_belief_with_gaussian(st.session_state['beliefs_after_bp'], post_x, post_y, cfg.measurement_range, cols=graph.grid_cols, metric="KL", source="array")
             if belief_fig_post:
                 st.plotly_chart(belief_fig_post, use_container_width=True, key ="post_bp_mse")
 
