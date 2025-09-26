@@ -88,8 +88,15 @@ def plot_prior_function(fig, gs, graph, measurement_range):
     # Plot prior functions
     prior_factors = [factor for factor in graph.factors if factor.factor_type == 'prior']
     ax = fig.add_subplot(gs[0, 2])      # TODO: fix hard coded position..
-    ax.plot(measurement_range, prior_factors[0].function)
-    ax.set_title(f'Prior: {prior_factors[0].name}')
+    ax.plot(measurement_range, prior_factors[0].function, color="tab:green")
+    # ax.set_title(f'Prior: {prior_factors[0].name}')
+    
+    # REMOVING LABELS
+    ax.set_title(None)
+    ax.set_xlabel(None)
+    ax.set_ylabel(None)
+    # remove ticks and tick labels
+    ax.tick_params(bottom=False, left=False, labelbottom=False, labelleft=False)
 
 
 def plot_final_beliefs(fig, gs, variables_to_plot, measurement_range, y_max, num_columns, show_comparison=True):
@@ -104,9 +111,16 @@ def plot_final_beliefs(fig, gs, variables_to_plot, measurement_range, y_max, num
             if show_comparison:
                 ax.plot(measurement_range, y_gauss, color='green', label='Gaussian')
 
-            ax.set_title(f'{var.name} - MSE: {min_mse:.2e}')
-            ax.set_ylim(0, y_max)
-            ax.set_ylabel('Probability')
+            # ax.set_title(f'{var.name} - MSE: {min_mse:.2e}')
+            # ax.set_ylim(0, y_max)
+            # ax.set_ylabel('Probability')
+            
+            # REMOVING LABELS
+            ax.set_title(None)
+            ax.set_xlabel(None)
+            ax.set_ylabel(None)
+            # remove ticks and tick labels
+            ax.tick_params(bottom=False, left=False, labelbottom=False, labelleft=False)
 
 
 ### Plotting the factor graph

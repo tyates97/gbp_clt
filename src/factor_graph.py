@@ -4,6 +4,7 @@ factor_graph.py
 # External libraries
 import networkx as nx
 import numpy as np
+import config as cfg
 
 # Local modules
 import distribution_management as dm
@@ -162,7 +163,7 @@ def add_tree_pairwise_factors(graph, branching_factor, branching_probability):
         for i in range(layer_size):
             parent = queue.pop(0)
             # Decide if this parent should branch
-            should_branch = (dm.rng.random() < branching_probability) or (i == layer_size - 1 and next_var_idx < num_variables)
+            should_branch = (cfg.rng.random() < branching_probability) or (i == layer_size - 1 and next_var_idx < num_variables)
             # should_branch = (np.random.rand() < branching_probability) or (i == layer_size - 1 and next_var_idx < num_variables)
             num_children = branching_factor if should_branch else 0
             # If this is the last parent in the layer and there are still variables left, force at least one child
