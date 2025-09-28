@@ -22,21 +22,21 @@ def normalise(distribution_values):
 # normalises a 2d distribution so its rows sum to 1. (commented below is a non-numba, simplified version)
 @numba.jit(nopython=True)
 def normalise_rows(distribution_values):
-    n, m = distribution_values.shape
-    out = np.empty_like(distribution_values)
-    for i in range(n):
-        s = 0.0
-        for j in range(m):
-            s += distribution_values[i, j]
-        if s == 0.0:
-            inv = 1.0 / m
-            for j in range(m):
-                out[i, j] = inv
+    height, width = distribution_values.shape
+    result = np.empty_like(distribution_values)
+    for row in range(height):
+        row_sum = 0.0
+        for col in range(width):
+            row_sum += distribution_values[row, col]
+        if row_sum == 0.0:
+            scaling_factor = 1.0 / width
+            for col in range(width):
+                result[row, col] = scaling_factor
         else:
-            inv = 1.0 / s
-            for j in range(m):
-                out[i, j] = distribution_values[i, j] * inv
-    return out
+            scaling_factor = 1.0 / row_sum
+            for col in range(width):
+                result[row, col] = distribution_values[row, col] * scaling_factor
+    return result
 
 def calculate_distributional_variance(pdf_volume):
     """Calculates the true variance of the disparity distributions."""
@@ -192,10 +192,12 @@ def _normalise_row_inplace(v):
         for i in range(v.size):
             v[i] *= inv
 
+
+
 @numba.jit(nopython=True)
 def create_smoothing_factor_distribution(discretisation, kernel=np.ones(1, dtype=np.float64), mrange=0, hist=None, smoothing_function='triangular', triangular_width=26):
     """
-    Circular (periodic) pairwise factor:
+    Diagonal pairwise factor:
       f(x1, x2) = k((x2 - x1) mod N)
     where k is a 1-D kernel:
       - if `hist` is given, use it (1-D array) as the kernel support,
@@ -221,7 +223,7 @@ def create_smoothing_factor_distribution(discretisation, kernel=np.ones(1, dtype
 
     # --- embed the base kernel on a circle of length N
     # We center `base` and wrap its mass onto a length-N circular vector k.
-    kernel = np.zeros(N, dtype=np.float64)
+    # kernel = np.zeros(N, dtype=np.float64)
     Length = base.shape[0]
     centre = Length // 2
     
@@ -231,10 +233,13 @@ def create_smoothing_factor_distribution(discretisation, kernel=np.ones(1, dtype
     for x1 in range(N):
         # place the kernel centered at x1 with reflection at boundaries
         for i in range(Length):
-            o = i - centre         # signed offset
-            j = x1 + o
-            j_ref = _reflect_index(j, N)
-            mat[x1, j_ref] += base[i]
+            j = x1 + (i - centre)
+            if 0 <= j < N:
+                mat[x1, j] += base[i]
+            # o = i - centre         # signed offset
+            # j = x1 + o
+            # j_ref = _reflect_index(j, N)
+            # mat[x1, j_ref] += base[i]
 
         # ensure each row sums to 1 (important near boundaries where folding occurs)
         _normalise_row_inplace(mat[x1])

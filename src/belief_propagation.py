@@ -221,7 +221,6 @@ def convert_pairwise_factor_to_gaussian(factor_matrix):
     Convert a 2D pairwise factor matrix to a Gaussian form
     """
     height, width = factor_matrix.shape
-
     original_kernel = factor_matrix[height//2,:]
     
     kernel_range = np.linspace(cfg.min_measurement, cfg.max_measurement, width, dtype=np.float64)
@@ -229,10 +228,9 @@ def convert_pairwise_factor_to_gaussian(factor_matrix):
     _, opt_sig, opt_mean = opt.optimise_gaussian_kl(original_kernel, kernel_range)
     
     gaussian_kernel = dm.create_gaussian_distribution(kernel_range, opt_sig, mu=opt_mean)
-    
     gaussian_smoothing_function = dm.create_smoothing_factor_distribution(len(kernel_range), kernel=gaussian_kernel)
     
-    return dm.normalise(gaussian_smoothing_function)
+    return dm.normalise_rows(gaussian_smoothing_function)
 
 
 def run_gaussian_belief_propagation(graph, num_iterations):
