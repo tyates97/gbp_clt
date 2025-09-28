@@ -58,15 +58,40 @@ class RealTimeConsoleCapture:
         with self.lock:
             return ''.join(self.contents)
 
-def run_belief_propagation_with_progress(graph, ground_truth, num_iterations, console_placeholder, mode="loopy"):
-    """Run belief propagation with real-time console updates"""
+# def run_belief_propagation_with_progress(graph, ground_truth, num_iterations, console_placeholder, mode="loopy"):
+#     """Run belief propagation with real-time console updates"""
 
-    mse_values = []
+#     mse_values = []
 
-    # Calculate initial MSE (iteration 0)
-    disparity_map = ip.get_disparity_from_graph(graph)
-    initial_mse = opt.get_mse_from_truth(disparity_map, ground_truth[:, 35:])
-    mse_values.append(initial_mse)
+#     # Calculate initial MSE (iteration 0)
+#     disparity_map = ip.get_disparity_from_graph(graph)
+#     initial_mse = opt.get_mse_from_truth(disparity_map, ground_truth[:, 35:])
+#     mse_values.append(initial_mse)
+    
+#     # Create a real-time console capture
+#     console_capture = RealTimeConsoleCapture(console_placeholder)
+    
+#     # Redirect stdout to our custom capture
+#     original_stdout = sys.stdout
+    
+#     if mode == "loopy":
+#         try:
+#             sys.stdout = console_capture
+#             result_graph = bp.run_belief_propagation(graph, num_iterations)
+#             return result_graph
+#         finally:
+#             sys.stdout = original_stdout
+#     elif mode == "gbp":
+#         try:
+#             sys.stdout = console_capture
+#             result_graph = bp.run_gaussian_belief_propagation(graph, cfg.num_iterations)
+#             return result_graph
+#         finally:
+#             sys.stdout = original_stdout
+
+''' test '''
+def run_belief_propagation_with_progress_and_mse(graph, ground_truth, num_iterations, console_placeholder, mode="loopy"):
+    """Run belief propagation with real-time console updates and MSE tracking"""
     
     # Create a real-time console capture
     console_capture = RealTimeConsoleCapture(console_placeholder)
@@ -74,20 +99,21 @@ def run_belief_propagation_with_progress(graph, ground_truth, num_iterations, co
     # Redirect stdout to our custom capture
     original_stdout = sys.stdout
     
-    if mode == "loopy":
-        try:
-            sys.stdout = console_capture
-            result_graph = bp.run_belief_propagation(graph, num_iterations)
-            return result_graph
-        finally:
-            sys.stdout = original_stdout
-    elif mode == "gbp":
-        try:
-            sys.stdout = console_capture
-            result_graph = bp.run_gaussian_belief_propagation(graph, cfg.num_iterations)
-            return result_graph
-        finally:
-            sys.stdout = original_stdout
+    # if mode == "loopy":
+    try:
+        sys.stdout = console_capture
+        result_graph, mse_values = bp.run_bp_stateful_with_mse_tracking(graph, ground_truth, num_iterations, mode=mode)
+        return result_graph, mse_values
+    finally:
+        sys.stdout = original_stdout
+    # elif mode == "gbp":
+    #     try:
+    #         sys.stdout = console_capture
+    #         result_graph, mse_values = bp.run_gaussian_belief_propagation_with_mse_tracking(graph, ground_truth, num_iterations)
+    #         return result_graph, mse_values
+    #     finally:
+    #         sys.stdout = original_stdout
+''' end test '''
 
 
 @st.cache_data
@@ -151,19 +177,12 @@ def main():
     if left_image is None:
         st.stop()
     
-    # Display basic images
-    st.header("📷 Input Images")
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("Left Image")
-        st.image(left_image/np.max(left_image), use_container_width=True, clamp=True)
-    
-    with col2:
-        st.subheader("Right Image")
-        st.image(right_image/np.max(right_image), use_container_width=True, clamp=True)
-     
-    # Configuration parameters
+
+
+
+
+
+    ### --- Configuration parameters --- ###
     st.sidebar.header("Parameters")
     patch_size = int(np.sqrt(st.sidebar.selectbox("Patch Size", [9, 25, 49], index=1)))
     # use_gaussian_bp = st.sidebar.checkbox("Use Gaussian Belief Propagation", value=False)
@@ -238,6 +257,22 @@ def main():
         # Rerun the app to apply changes
         st.rerun()
 
+
+
+
+
+    ### --- Input Images Section --- ###
+    st.header("📷 Input Images")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("Left Image")
+        st.image(left_image/np.max(left_image), use_container_width=True, clamp=True)
+    
+    with col2:
+        st.subheader("Right Image")
+        st.image(right_image/np.max(right_image), use_container_width=True, clamp=True)
+
     # If parameters haven't been set yet, initialize them
     if not hasattr(cfg, 'cost_function'):
         cfg.cost_function = 'NCC'
@@ -258,7 +293,11 @@ def main():
     with st.spinner("Converting costs to PDFs..."):
         pdf_volume = compute_pdf_volume(cost_volume, cfg.lambda_param)
     
-    # Interactive cost function inspector
+    
+    
+
+
+    ### --- Cost Function Inspector Section --- ###
     st.header("💰 Cost Function Inspector")
     
     # Create two columns: left for coordinate selector, right for variance heatmap
@@ -317,7 +356,11 @@ def main():
         if pdf_plot:
             st.plotly_chart(pdf_plot, use_container_width=True)
     
-    # Smoothing kernel visualization
+    
+    
+
+
+    ### --- Smoothing Kernel Section --- ###
     st.header("🔧 Smoothing Kernel")
 
     # Generate kernel data based on smoothing function selection
@@ -490,7 +533,10 @@ def main():
     disparity_vol_pre_bp = ip.get_disparity_from_graph(graph)
 
 
-    # Belief Propagation Section
+
+
+
+    ### --- Belief Propagation Section --- ###
     st.header("🧠 Belief Propagation")
     
     # Console Output section (always visible)
@@ -520,11 +566,13 @@ def main():
         with st.spinner("Running Belief Propagation..."):
                     
             ### First run BP and store results in session state
-            bp_result_graph = run_belief_propagation_with_progress(graph, ground_truth, cfg.num_iterations, console_placeholder, mode="loopy")
+            # bp_result_graph = run_belief_propagation_with_progress(graph, ground_truth, cfg.num_iterations, console_placeholder, mode="loopy")
+            bp_result_graph, bp_mse_values = run_belief_propagation_with_progress_and_mse(graph, ground_truth, cfg.num_iterations, console_placeholder, mode="loopy")
 
             st.session_state['beliefs_after_bp'] = fg.save_beliefs(bp_result_graph)
             st.session_state['kl_after_bp'] = opt.get_kl_from_graph(bp_result_graph)
             st.session_state['disparity_vol_post_bp'] = ip.get_disparity_from_graph(bp_result_graph)
+            st.session_state['bp_mse_values'] = bp_mse_values
             st.session_state['bp_completed'] = True
             
             console_placeholder.code("BP completed successfully! Restoring original beliefs...")
@@ -536,11 +584,13 @@ def main():
             console_placeholder.code("Original beliefs restored, now running GBP...")
 
             ### Then run GBP and store results in session state
-            gbp_result_graph = run_belief_propagation_with_progress(graph, ground_truth, cfg.num_iterations, console_placeholder, mode="gbp")
+            # gbp_result_graph = run_belief_propagation_with_progress(graph, ground_truth, cfg.num_iterations, console_placeholder, mode="gbp")
+            gbp_result_graph, gbp_mse_values = run_belief_propagation_with_progress_and_mse(graph, ground_truth, cfg.num_iterations, console_placeholder, mode="gbp")
 
             st.session_state['beliefs_after_gbp'] = fg.save_beliefs(gbp_result_graph)
             st.session_state['kl_after_gbp'] = opt.get_kl_from_graph(gbp_result_graph)
             st.session_state['disparity_vol_post_gbp'] = ip.get_disparity_from_graph(gbp_result_graph)
+            st.session_state['gbp_mse_values'] = gbp_mse_values
             st.session_state['gbp_completed'] = True
 
             ### Then restore original beliefs again
@@ -548,12 +598,84 @@ def main():
             fg.restore_factor_functions(graph, st.session_state['factors_before_bp'])
         
         # Final update
-        console_placeholder.code("GBP completed successfully!")
+        console_placeholder.code("Both BP and GBP completed successfully!")
     
-    # Results section
+
+
+
+
+    ### --- Results Section --- ###
     if st.session_state.get('bp_completed', False):
         st.header("📈 Results")
         
+        # MSE Comparison Plot
+        st.subheader("📊 MSE vs Iterations")
+        
+        if 'bp_mse_values' in st.session_state and 'gbp_mse_values' in st.session_state:
+            # import plotly.graph_objects as go
+            
+            bp_mse = st.session_state['bp_mse_values']
+            gbp_mse = st.session_state['gbp_mse_values']
+            iterations = list(range(len(bp_mse)))
+            
+            fig = go.Figure()
+            
+            # Add BP line
+            fig.add_trace(go.Scatter(
+                x=iterations,
+                y=bp_mse,
+                mode='lines+markers',
+                name='Standard BP',
+                line=dict(color='blue', width=2),
+                marker=dict(size=6)
+            ))
+            
+            # Add GBP line
+            fig.add_trace(go.Scatter(
+                x=iterations,
+                y=gbp_mse,
+                mode='lines+markers',
+                name='Gaussian BP',
+                line=dict(color='red', width=2),
+                marker=dict(size=6)
+            ))
+            
+            fig.update_layout(
+                title="Mean Squared Error vs Iteration",
+                xaxis_title="Iteration",
+                yaxis_title="MSE",
+                hovermode='x unified',
+                legend=dict(
+                    yanchor="top",
+                    y=0.99,
+                    xanchor="left",
+                    x=0.01
+                ),
+                height=400
+            )
+            
+            # Add grid
+            fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+            fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+            
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Add summary statistics
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric(
+                    "Final BP MSE", 
+                    f"{bp_mse[-1]:.4f}",
+                    delta=f"{bp_mse[-1] - bp_mse[0]:.4f}"
+                )
+            with col2:
+                st.metric(
+                    "Final GBP MSE", 
+                    f"{gbp_mse[-1]:.4f}",
+                    delta=f"{gbp_mse[-1] - gbp_mse[0]:.4f}"
+                )
+
+
         # Disparity comparison
         st.subheader("Disparity Maps")
         col1, col2, col3, col4 = st.columns(4)
@@ -595,7 +717,10 @@ def main():
             st.image(normalised_ground_truth[:, 35:], use_container_width=True, clamp=True)
 
 
-        # Interactive Gaussian heatmaps
+
+
+
+        ### --- Gaussian Fit Analysis Section --- ###
         st.subheader("🎯 Gaussian Fit Analysis")
           
         # Calculate global min/max for consistent scaling
@@ -604,7 +729,7 @@ def main():
         kl_post_gbp = st.session_state['kl_after_gbp']
 
         global_min = min(np.min(kl_pre_bp), np.min(kl_post_bp), np.min(kl_post_gbp))
-        global_max = max(np.max(kl_pre_bp), np.max(kl_post_bp), np.min(kl_post_gbp))
+        global_max = max(np.max(kl_pre_bp), np.max(kl_post_bp), np.max(kl_post_gbp))
         
         col1, col2, col3 = st.columns(3)
         
@@ -634,6 +759,7 @@ def main():
             belief_fig_post_gbp = gx.plot_pixel_belief_with_gaussian(st.session_state['beliefs_after_gbp'], post_gbp_x, post_gbp_y, cfg.measurement_range, cols=graph.grid_cols, metric="KL", source="array")
             if belief_fig_post_gbp:
                 st.plotly_chart(belief_fig_post_gbp, use_container_width=True, key ="post_gbp_mse")
+
 
 
 
