@@ -238,12 +238,7 @@ def run_gaussian_belief_propagation(graph, num_iterations):
     Main function to run Gaussian BP
     """
     gaussian_graph = convert_graph_to_gaussian(graph)
-
-    # Run standard belief propagation on Gaussian approximations
-    # Import your existing BP module
-    import belief_propagation as bp
-    result_graph = bp.run_belief_propagation(gaussian_graph, num_iterations)
-    
+    result_graph = run_belief_propagation(gaussian_graph, num_iterations)
     return result_graph
 
 def compare_gaussian_vs_original(graph):
@@ -262,52 +257,52 @@ def compare_gaussian_vs_original(graph):
     
     return kl_divergences
 
-# Optional: More sophisticated Gaussian factor approximation
-def fit_2d_gaussian_to_factor(factor_matrix):
-    """
-    Fit a 2D Gaussian to a pairwise factor matrix
-    """
-    rows, cols = factor_matrix.shape
+# # Optional: More sophisticated Gaussian factor approximation
+# def fit_2d_gaussian_to_factor(factor_matrix):
+#     """
+#     Fit a 2D Gaussian to a pairwise factor matrix
+#     """
+#     rows, cols = factor_matrix.shape
     
-    # Create coordinate grids
-    x, y = np.meshgrid(np.arange(cols), np.arange(rows))
+#     # Create coordinate grids
+#     x, y = np.meshgrid(np.arange(cols), np.arange(rows))
     
-    # Flatten for fitting
-    coords = np.column_stack([x.ravel(), y.ravel()])
-    values = factor_matrix.ravel()
+#     # Flatten for fitting
+#     coords = np.column_stack([x.ravel(), y.ravel()])
+#     values = factor_matrix.ravel()
     
-    # Calculate weighted mean and covariance
-    total_weight = np.sum(values)
-    if total_weight == 0:
-        return factor_matrix
+#     # Calculate weighted mean and covariance
+#     total_weight = np.sum(values)
+#     if total_weight == 0:
+#         return factor_matrix
     
-    mean_x = np.sum(coords[:, 0] * values) / total_weight
-    mean_y = np.sum(coords[:, 1] * values) / total_weight
+#     mean_x = np.sum(coords[:, 0] * values) / total_weight
+#     mean_y = np.sum(coords[:, 1] * values) / total_weight
     
-    # Calculate covariance matrix
-    diff_x = coords[:, 0] - mean_x
-    diff_y = coords[:, 1] - mean_y
+#     # Calculate covariance matrix
+#     diff_x = coords[:, 0] - mean_x
+#     diff_y = coords[:, 1] - mean_y
     
-    var_xx = np.sum(diff_x * diff_x * values) / total_weight
-    var_yy = np.sum(diff_y * diff_y * values) / total_weight
-    var_xy = np.sum(diff_x * diff_y * values) / total_weight
+#     var_xx = np.sum(diff_x * diff_x * values) / total_weight
+#     var_yy = np.sum(diff_y * diff_y * values) / total_weight
+#     var_xy = np.sum(diff_x * diff_y * values) / total_weight
     
-    # Create 2D Gaussian
-    gaussian_2d = np.zeros_like(factor_matrix)
+#     # Create 2D Gaussian
+#     gaussian_2d = np.zeros_like(factor_matrix)
     
-    det_cov = var_xx * var_yy - var_xy * var_xy
-    if det_cov <= 0:
-        return factor_matrix  # Fallback to original
+#     det_cov = var_xx * var_yy - var_xy * var_xy
+#     if det_cov <= 0:
+#         return factor_matrix  # Fallback to original
     
-    inv_det = 1.0 / det_cov
+#     inv_det = 1.0 / det_cov
     
-    for i in range(rows):
-        for j in range(cols):
-            dx = j - mean_x
-            dy = i - mean_y
+#     for i in range(rows):
+#         for j in range(cols):
+#             dx = j - mean_x
+#             dy = i - mean_y
             
-            exponent = -0.5 * inv_det * (var_yy * dx * dx - 2 * var_xy * dx * dy + var_xx * dy * dy)
-            gaussian_2d[i, j] = np.exp(exponent)
+#             exponent = -0.5 * inv_det * (var_yy * dx * dx - 2 * var_xy * dx * dy + var_xx * dy * dy)
+#             gaussian_2d[i, j] = np.exp(exponent)
     
-    # Normalize
-    return dm.normalise(gaussian_2d.flatten()).reshape(gaussian_2d.shape)
+    # # Normalize
+    # return dm.normalise(gaussian_2d.flatten()).reshape(gaussian_2d.shape)

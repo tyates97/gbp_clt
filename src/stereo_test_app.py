@@ -15,6 +15,7 @@ import distribution_management as dm
 import belief_propagation as bp
 import optimisation as opt
 import image_processing as ip
+import graphics as gx
 
 # defining a custom colour scale
 excellent_threshold = 0.001      # Very Gaussian (green)
@@ -57,8 +58,18 @@ class RealTimeConsoleCapture:
         with self.lock:
             return ''.join(self.contents)
 
-def run_belief_propagation_with_progress(graph, num_iterations, console_placeholder, mode="loopy"):
+def run_belief_propagation_with_progress(graph, ground_truth, num_iterations, console_placeholder, mode="loopy"):
     """Run belief propagation with real-time console updates"""
+    # Store initial beliefs
+    # initial_beliefs = fg.save_beliefs(graph)
+    
+    mse_values = []
+
+    # Calculate initial MSE (iteration 0)
+    disparity_map = ip.get_disparity_from_graph(graph)
+    initial_mse = opt.get_mse_from_truth(disparity_map, ground_truth[:, 35:])
+    mse_values.append(initial_mse)
+    
     # Create a real-time console capture
     console_capture = RealTimeConsoleCapture(console_placeholder)
     
@@ -80,94 +91,6 @@ def run_belief_propagation_with_progress(graph, num_iterations, console_placehol
         finally:
             sys.stdout = original_stdout
 
-def calculate_distributional_variance(pdf_volume):
-    """Calculates the true variance of the disparity distributions."""
-    height, width, max_disparity = pdf_volume.shape
-    variance_vol = np.zeros((height, width))
-
-    # The x-values of our distribution (i.e., the disparity values)
-    disparity_values = cfg.measurement_range
-
-    for y in range(height):
-        for x in range(width):
-            pdf = pdf_volume[y, x, :]
-
-            # E[X] = sum(x * p(x))
-            mean = np.sum(disparity_values * pdf)
-
-            # E[X^2] = sum(x^2 * p(x))
-            mean_sq = np.sum((disparity_values**2) * pdf)
-
-            # Var(X) = E[X^2] - (E[X])^2
-            variance = mean_sq - (mean**2)
-            variance_vol[y, x] = variance
-
-    return variance_vol
-
-def create_coordinate_selector(image_data, title, key_prefix, cmap="gray", global_min=None, global_max=None):
-    """Create a coordinate selector with image display and slider controls, with overlay point"""
-    scale_label = "KL Divergence" if cmap == custom_colorscale else "Color"
-
-    st.write(f"**{title}**")
-
-    # Create sliders for coordinate selection
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        x_coord = st.slider(
-            "X coordinate", 
-            min_value=0, 
-            max_value=image_data.shape[1]-1, 
-            value=image_data.shape[1]//2,
-            key=f"{key_prefix}_x"
-        )
-    
-    with col2:
-        y_coord = st.slider(
-            "Y coordinate", 
-            min_value=0, 
-            max_value=image_data.shape[0]-1, 
-            value=image_data.shape[0]//2,
-            key=f"{key_prefix}_y"
-        )
-    
-    # Create the heatmap with fixed scale
-    fig = px.imshow(
-        image_data,
-        color_continuous_scale=cmap,  # Red=high KL, Green=low KL
-        zmin=0,
-        title=title,
-        labels=dict(x="X", y="Y", color=scale_label)
-    )
-    
-    # Add a red point at the selected coordinates
-    fig.add_trace(go.Scatter(
-        x=[x_coord],
-        y=[y_coord],
-        mode='markers',
-        marker=dict(
-            size=15,
-            color='red',
-            symbol='circle',
-            line=dict(color='white', width=2)
-        ),
-        name=f'Selected Point ({x_coord}, {y_coord})',
-        showlegend=False
-    ))
-    
-    fig.update_layout(
-        title=f"Selected: ({x_coord}, {y_coord})",
-        xaxis_title="X",
-        yaxis_title="Y",
-        height=500,
-        width=500,
-        showlegend=False
-    )
-
-    # Display the interactive plot
-    st.plotly_chart(fig, use_container_width=True, key=f"coord_selector_{key_prefix}")
-    
-    return x_coord, y_coord
 
 @st.cache_data
 def load_images():
@@ -213,94 +136,8 @@ def build_factor_graph_cached(pdf_volume, smoothing_kernel):
     """Build and cache the factor graph"""
     return fg.get_graph_from_pdf_hist(pdf_volume, smoothing_kernel)
 
-def plot_pixel_data(data_volume, x, y, title, x_label="Index", y_label="Value"):
-    """Plot data for a specific pixel"""
 
-    if x < data_volume.shape[1] and y < data_volume.shape[0]:
-        pixel_data = data_volume[y, x, :]
 
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(
-            x=np.linspace(cfg.min_measurement, cfg.max_measurement, data_volume.shape[2]),
-            y=pixel_data,
-            mode='lines',
-            name='Data'
-        ))
-        
-        fig.update_layout(
-            title=f"{title} at Pixel (x={x}, y={y})",
-            xaxis_title=x_label,
-            yaxis_title=y_label,
-            yaxis=dict(range=[0, None]),  # Forces y-axis to start at 0
-            height=500,
-            width=500
-        )
-        
-        return fig
-    return None
-
-def create_heatmap_plot(image_data, title, colorscale='gray'):
-    """Create a heatmap for MSE visualization"""
-    fig = px.imshow(
-        image_data,
-        color_continuous_scale=colorscale,
-        title=title,
-        labels=dict(x="X", y="Y", color="Value")
-    )
-    
-    fig.update_layout(height=400)
-    return fig
-
-# Update the belief plotting function to use KL:
-def plot_pixel_belief_with_gaussian(data_source, x, y, measurement_range, cols=None, metric="KL", source="graph"):
-    """Plot pixel belief with optimal Gaussian overlay using KL divergence"""
-    
-    if source == "graph":
-        pixel_idx = y * data_source.grid_cols + x
-        if pixel_idx >= len(data_source.variables):
-            return None
-        variable = data_source.variables[pixel_idx]
-        belief = variable.belief
-    
-    elif source == "array":
-        idx = y*cols + x
-        belief = data_source[idx]
-    
-    # Calculate optimal Gaussian using KL divergence
-    if metric == "KL":
-        min, optimal_sigma, optimal_mean = opt.optimise_gaussian_kl(belief, measurement_range)
-    else:
-        min, optimal_sigma, optimal_mean = opt.optimise_gaussian(belief, measurement_range)
-    gaussian_fit = dm.create_gaussian_distribution(measurement_range, optimal_sigma, mu=optimal_mean)
-    
-    fig = go.Figure()
-    
-    # Plot belief
-    fig.add_trace(go.Scatter(
-        x=measurement_range,
-        y=belief,
-        mode='lines+markers',
-        name='Belief',
-        line=dict(color='blue')
-    ))
-    
-    # Plot Gaussian fit
-    fig.add_trace(go.Scatter(
-        x=measurement_range,
-        y=gaussian_fit,
-        mode='lines',
-        name=f'Gaussian Fit (σ={optimal_sigma:.2f}, {metric}={min:.2e})',
-        line=dict(color='red', dash='dash')
-    ))
-    
-    fig.update_layout(
-        title=f"Belief vs Gaussian Fit at Pixel (x={x}, y={y})",
-        xaxis_title="Disparity",
-        yaxis_title="Probability",
-        height=400
-    )
-    
-    return fig
 
 def main():
     # Initialize session state variables
@@ -431,7 +268,7 @@ def main():
     
     with col1:
         # Use the coordinate selector with overlay
-        x_coord, y_coord = create_coordinate_selector(left_image[:, 35:], "Left Image - Use sliders to select coordinates for cost inspection", "cost", cmap="gray")
+        x_coord, y_coord = gx.create_coordinate_selector(left_image[:, 35:], "Left Image - Use sliders to select coordinates for cost inspection", "cost", cmap="gray")
     
     with col2:
         # Calculate and display variance heatmap
@@ -441,7 +278,7 @@ def main():
         st.write("")  # Add more spacing if needed
         st.write("")  # Add more spacing if needed
         st.write("")  # Add more spacing if needed
-        variance_volume = calculate_distributional_variance(pdf_volume)
+        variance_volume = dm.calculate_distributional_variance(pdf_volume)
         
         # Create variance heatmap plot
         variance_fig = px.imshow(
@@ -470,7 +307,7 @@ def main():
             st.write("Cost function: Sum of Squared Differences")
             st.latex(r'''C(x_i) = \sum_{patch} (I_L - I_R)^2''')
         # Generate and display the cost plot (full width)
-        cost_plot = plot_pixel_data(cost_volume, x_coord, y_coord, "Cost Function", "Disparity", "Cost")
+        cost_plot = gx.plot_pixel_data(cost_volume, x_coord, y_coord, "Cost Function", "Disparity", "Cost")
         if cost_plot:
             st.plotly_chart(cost_plot, use_container_width=True)
     with col2: 
@@ -478,7 +315,7 @@ def main():
         st.latex(r''' p(x_i) = \frac{e^{-\lambda C(x_i)}}{\sum_{j} e^{-\lambda C(x_j)} }
                 ''')
         # Generate and display the PDF plot
-        pdf_plot = plot_pixel_data(pdf_volume, x_coord, y_coord, "Probability Distribution", "Disparity", "Probability")
+        pdf_plot = gx.plot_pixel_data(pdf_volume, x_coord, y_coord, "Probability Distribution", "Disparity", "Probability")
         if pdf_plot:
             st.plotly_chart(pdf_plot, use_container_width=True)
     
@@ -649,8 +486,7 @@ def main():
             if factor.factor_type == "prior":
                 variable.belief = factor.function
     
-    initial_beliefs = {i: var.belief.copy() for i, var in enumerate(graph.variables)}
-    st.session_state['beliefs_before_bp'] = initial_beliefs
+    st.session_state['beliefs_before_bp'] = fg.save_beliefs(graph)
     st.session_state['kl_before_bp'] = opt.get_kl_from_graph(graph)
     disparity_vol_pre_bp = ip.get_disparity_from_graph(graph)
 
@@ -676,19 +512,17 @@ def main():
         if 'graph_after_bp' in st.session_state:
             del st.session_state['graph_after_bp']
 
-        # Reset to initial beliefs 
-        for i, variable in enumerate(graph.variables):
-            variable.belief = initial_beliefs[i].copy()
+        # Reset to initial beliefs
+        fg.restore_beliefs(graph, st.session_state['beliefs_before_bp'])
 
         console_placeholder.code("Starting belief propagation...")
 
         with st.spinner("Running Belief Propagation..."):
                     
             ### First run BP and store results in session state
-            bp_result_graph = run_belief_propagation_with_progress(graph, cfg.num_iterations, console_placeholder, mode="loopy")
+            bp_result_graph = run_belief_propagation_with_progress(graph, ground_truth, cfg.num_iterations, console_placeholder, mode="loopy")
 
-            final_bp_beliefs = {i: var.belief.copy() for i, var in enumerate(bp_result_graph.variables)}
-            st.session_state['beliefs_after_bp'] = final_bp_beliefs
+            st.session_state['beliefs_after_bp'] = fg.save_beliefs(bp_result_graph)
             st.session_state['kl_after_bp'] = opt.get_kl_from_graph(bp_result_graph)
             st.session_state['disparity_vol_post_bp'] = ip.get_disparity_from_graph(bp_result_graph)
             st.session_state['bp_completed'] = True
@@ -696,23 +530,22 @@ def main():
             console_placeholder.code("BP completed successfully! Restoring original beliefs...")
 
             ### Then restore original beliefs
+            fg.restore_beliefs(graph, st.session_state['beliefs_before_bp'])
             for i, variable in enumerate(graph.variables):
                 variable.belief = st.session_state['beliefs_before_bp'][i].copy()
             
             console_placeholder.code("Original beliefs restored, now running GBP...")
 
             ### Then run GBP and store results in session state
-            gbp_result_graph = run_belief_propagation_with_progress(graph, cfg.num_iterations, console_placeholder, mode="gbp")
+            gbp_result_graph = run_belief_propagation_with_progress(graph, ground_truth, cfg.num_iterations, console_placeholder, mode="gbp")
 
-            final_gbp_beliefs = {i: var.belief.copy() for i, var in enumerate(gbp_result_graph.variables)}
-            st.session_state['beliefs_after_gbp'] = final_gbp_beliefs
+            st.session_state['beliefs_after_gbp'] = fg.save_beliefs(gbp_result_graph)
             st.session_state['kl_after_gbp'] = opt.get_kl_from_graph(gbp_result_graph)
             st.session_state['disparity_vol_post_gbp'] = ip.get_disparity_from_graph(gbp_result_graph)
             st.session_state['gbp_completed'] = True
 
             ### Then restore original beliefs again
-            for i, variable in enumerate(graph.variables):
-                variable.belief = st.session_state['beliefs_before_bp'][i].copy()
+            fg.restore_beliefs(graph, st.session_state['beliefs_before_bp'])
         
         # Final update
         console_placeholder.code("GBP completed successfully!")
@@ -760,8 +593,8 @@ def main():
             st.write("Ground Truth")
             normalised_ground_truth = ground_truth/np.max(ground_truth)
             st.image(normalised_ground_truth[:, 35:], use_container_width=True, clamp=True)
-        
-        
+
+
         # Interactive Gaussian heatmaps
         st.subheader("🎯 Gaussian Fit Analysis")
           
@@ -778,32 +611,32 @@ def main():
         with col1:
             st.write("**Pre-BP Gaussian KL Divergence**")
             # Coordinate selector for pre-BP with overlay
-            pre_x, pre_y = create_coordinate_selector(kl_pre_bp, "Select coordinates for Pre-BP belief analysis", "pre_bp", cmap=custom_colorscale, global_min=global_min, global_max=global_max)
+            pre_x, pre_y = gx.create_coordinate_selector(kl_pre_bp, "Select coordinates for Pre-BP belief analysis", "pre_bp", cmap=custom_colorscale, global_min=global_min, global_max=global_max)
             
-            belief_fig_pre = plot_pixel_belief_with_gaussian(st.session_state['beliefs_before_bp'], pre_x, pre_y, cfg.measurement_range, cols=graph.grid_cols, metric="KL", source="array")
+            belief_fig_pre = gx.plot_pixel_belief_with_gaussian(st.session_state['beliefs_before_bp'], pre_x, pre_y, cfg.measurement_range, cols=graph.grid_cols, metric="KL", source="array")
             if belief_fig_pre:
                 st.plotly_chart(belief_fig_pre, use_container_width=True)
         
         with col2:
             st.write("**Post-BP Gaussian KL Divergence**")
             # Coordinate selector for post-BP with overlay
-            post_bp_x, post_bp_y = create_coordinate_selector(kl_post_bp, "Select coordinates for Post-BP belief analysis", "post_bp", cmap=custom_colorscale, global_min=global_min, global_max=global_max)
+            post_bp_x, post_bp_y = gx.create_coordinate_selector(kl_post_bp, "Select coordinates for Post-BP belief analysis", "post_bp", cmap=custom_colorscale, global_min=global_min, global_max=global_max)
             
-            belief_fig_post_bp = plot_pixel_belief_with_gaussian(st.session_state['beliefs_after_bp'], post_bp_x, post_bp_y, cfg.measurement_range, cols=graph.grid_cols, metric="KL", source="array")
+            belief_fig_post_bp = gx.plot_pixel_belief_with_gaussian(st.session_state['beliefs_after_bp'], post_bp_x, post_bp_y, cfg.measurement_range, cols=graph.grid_cols, metric="KL", source="array")
             if belief_fig_post_bp:
                 st.plotly_chart(belief_fig_post_bp, use_container_width=True, key ="post_bp_mse")
         
         with col3:
             st.write("**Post-GBP Gaussian KL Divergence**")
             # Coordinate selector for post-BP with overlay
-            post_gbp_x, post_gbp_y = create_coordinate_selector(kl_post_gbp, "Select coordinates for Post-GBP belief analysis", "post_gbp", cmap=custom_colorscale, global_min=global_min, global_max=global_max)
+            post_gbp_x, post_gbp_y = gx.create_coordinate_selector(kl_post_gbp, "Select coordinates for Post-GBP belief analysis", "post_gbp", cmap=custom_colorscale, global_min=global_min, global_max=global_max)
             
-            belief_fig_post_gbp = plot_pixel_belief_with_gaussian(st.session_state['beliefs_after_gbp'], post_gbp_x, post_gbp_y, cfg.measurement_range, cols=graph.grid_cols, metric="KL", source="array")
+            belief_fig_post_gbp = gx.plot_pixel_belief_with_gaussian(st.session_state['beliefs_after_gbp'], post_gbp_x, post_gbp_y, cfg.measurement_range, cols=graph.grid_cols, metric="KL", source="array")
             if belief_fig_post_gbp:
                 st.plotly_chart(belief_fig_post_gbp, use_container_width=True, key ="post_gbp_mse")
 
 
-        
+
 
 if __name__ == "__main__":
     # Initialize session state

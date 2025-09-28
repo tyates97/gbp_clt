@@ -119,6 +119,13 @@ def get_mse_from_graph(graph):
     
     return mse_values
 
+@numba.jit(nopython=True)
+def get_mse_from_truth(image, ground_truth):
+    error = (image-ground_truth)
+    squared_error = error**2
+    mse = np.mean(squared_error)
+    return mse
+
 
 
 ''' function to find the nearest prior to a variable in a factor graph '''

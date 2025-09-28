@@ -3,9 +3,13 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
 import numpy as np
 import networkx as nx
+import plotly.graph_objects as go
+import plotly.express as px
+import streamlit as st
 # from sklearn.metrics import mean_squared_error
 
 # local modules
+import config as cfg
 import distribution_management as dm
 import optimisation as opt
 
@@ -449,3 +453,160 @@ def plot_disparity_histogram(hist, bin_edges):
     
     # Optional: Use a logarithmic scale if a few bins dominate the plot
     # plt.yscale('log')
+
+# Update the belief plotting function to use KL:
+def plot_pixel_belief_with_gaussian(data_source, x, y, measurement_range, cols=None, metric="KL", source="graph"):
+    """Plot pixel belief with optimal Gaussian overlay using KL divergence"""
+    
+    if source == "graph":
+        pixel_idx = y * data_source.grid_cols + x
+        if pixel_idx >= len(data_source.variables):
+            return None
+        variable = data_source.variables[pixel_idx]
+        belief = variable.belief
+    
+    elif source == "array":
+        idx = y*cols + x
+        belief = data_source[idx]
+    
+    # Calculate optimal Gaussian using KL divergence
+    if metric == "KL":
+        min, optimal_sigma, optimal_mean = opt.optimise_gaussian_kl(belief, measurement_range)
+    else:
+        min, optimal_sigma, optimal_mean = opt.optimise_gaussian(belief, measurement_range)
+    gaussian_fit = dm.create_gaussian_distribution(measurement_range, optimal_sigma, mu=optimal_mean)
+    
+    fig = go.Figure()
+    
+    # Plot belief
+    fig.add_trace(go.Scatter(
+        x=measurement_range,
+        y=belief,
+        mode='lines+markers',
+        name='Belief',
+        line=dict(color='blue')
+    ))
+    
+    # Plot Gaussian fit
+    fig.add_trace(go.Scatter(
+        x=measurement_range,
+        y=gaussian_fit,
+        mode='lines',
+        name=f'Gaussian Fit (σ={optimal_sigma:.2f}, {metric}={min:.2e})',
+        line=dict(color='red', dash='dash')
+    ))
+    
+    fig.update_layout(
+        title=f"Belief vs Gaussian Fit at Pixel (x={x}, y={y})",
+        xaxis_title="Disparity",
+        yaxis_title="Probability",
+        height=400
+    )
+    
+    return fig
+
+def plot_pixel_data(data_volume, x, y, title, x_label="Index", y_label="Value"):
+    """Plot data for a specific pixel"""
+
+    if x < data_volume.shape[1] and y < data_volume.shape[0]:
+        pixel_data = data_volume[y, x, :]
+
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=np.linspace(cfg.min_measurement, cfg.max_measurement, data_volume.shape[2]),
+            y=pixel_data,
+            mode='lines',
+            name='Data'
+        ))
+        
+        fig.update_layout(
+            title=f"{title} at Pixel (x={x}, y={y})",
+            xaxis_title=x_label,
+            yaxis_title=y_label,
+            yaxis=dict(range=[0, None]),  # Forces y-axis to start at 0
+            height=500,
+            width=500
+        )
+        
+        return fig
+    return None
+
+
+# defining a custom colour scale
+excellent_threshold = 0.001      # Very Gaussian (green)
+good_threshold = 0.01           # Reasonably Gaussian
+poor_threshold = 0.05           # Somewhat non-Gaussian (yellow)
+bad_threshold = 0.2             # Non-Gaussian (orange)
+custom_colorscale = [
+    [0.0, "green"],                                    # 0.0 = perfect (green)
+    [excellent_threshold/1.0, "green"],               # 0.001 = still green  
+    [good_threshold/1.0, "lightgreen"],               # 0.01 = light green
+    [poor_threshold/1.0, "yellow"],                   # 0.05 = yellow
+    [bad_threshold/1.0, "orange"],                    # 0.5 = orange
+    [1.0, "red"]                                      # 1.0 = red
+]
+
+def create_coordinate_selector(image_data, title, key_prefix, cmap="gray", global_min=None, global_max=None):
+    """Create a coordinate selector with image display and slider controls, with overlay point"""
+    scale_label = "KL Divergence" if cmap == custom_colorscale else "Color"
+
+    st.write(f"**{title}**")
+
+    # Create sliders for coordinate selection
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        x_coord = st.slider(
+            "X coordinate", 
+            min_value=0, 
+            max_value=image_data.shape[1]-1, 
+            value=image_data.shape[1]//2,
+            key=f"{key_prefix}_x"
+        )
+    
+    with col2:
+        y_coord = st.slider(
+            "Y coordinate", 
+            min_value=0, 
+            max_value=image_data.shape[0]-1, 
+            value=image_data.shape[0]//2,
+            key=f"{key_prefix}_y"
+        )
+    
+    # Create the heatmap with fixed scale
+    fig = px.imshow(
+        image_data,
+        color_continuous_scale=cmap,  # Red=high KL, Green=low KL
+        zmin=0,
+        title=title,
+        labels=dict(x="X", y="Y", color=scale_label)
+    )
+    
+    # Add a red point at the selected coordinates
+    fig.add_trace(go.Scatter(
+        x=[x_coord],
+        y=[y_coord],
+        mode='markers',
+        marker=dict(
+            size=15,
+            color='red',
+            symbol='circle',
+            line=dict(color='white', width=2)
+        ),
+        name=f'Selected Point ({x_coord}, {y_coord})',
+        showlegend=False
+    ))
+    
+    fig.update_layout(
+        title=f"Selected: ({x_coord}, {y_coord})",
+        xaxis_title="X",
+        yaxis_title="Y",
+        height=500,
+        width=500,
+        showlegend=False
+    )
+
+    # Display the interactive plot
+    st.plotly_chart(fig, use_container_width=True, key=f"coord_selector_{key_prefix}")
+    
+    return x_coord, y_coord

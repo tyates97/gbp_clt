@@ -330,3 +330,12 @@ def get_graph_from_pdf_hist(pdf_volume, hist=None):
     graph.add_priors_from_pdf(pdf_volume)
 
     return graph
+
+def save_beliefs(graph):
+    """ Save current beliefs from all variables in the graph """
+    return {i: var.belief.copy() for i,var in enumerate(graph.variables)}
+
+def restore_beliefs(graph, saved_beliefs):
+    """ Restore beliefs to all variables in the graph """
+    for i, variable in enumerate(graph.variables):
+        variable.belief = saved_beliefs[i].copy()
