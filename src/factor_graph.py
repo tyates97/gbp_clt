@@ -339,3 +339,11 @@ def restore_beliefs(graph, saved_beliefs):
     """ Restore beliefs to all variables in the graph """
     for i, variable in enumerate(graph.variables):
         variable.belief = saved_beliefs[i].copy()
+
+def save_factor_functions(graph):
+    return {i: f.function.copy() for i, f in enumerate(graph.factors) if hasattr(f, "function")}
+
+def restore_factor_functions(graph, saved_functions):
+    for i, f in enumerate(graph.factors):
+        if i in saved_functions:
+            f.function = saved_functions[i].copy()

@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 
  # Internal modules
 import config as cfg
+import optimisation as opt
 
 # normalises a set of distribution values so their sum adds to 1
 @numba.jit(nopython=True)
@@ -246,21 +247,62 @@ def create_smoothing_factor_distribution(discretisation, kernel=np.ones(1, dtype
 
     return mat
 
+def convert_graph_to_gaussian(graph):
+    """
+    Convert all variable beliefs and factor functions to Gaussian approximations
+    """
+    print("Converting factor graph to Gaussian approximations...")
+    
+    # Convert variable beliefs to Gaussian
+    for i, variable in enumerate(graph.variables):
+        if i % 10000 == 0:  # Progress indicator
+            print(f"Converting variable beliefs: {i}/{len(graph.variables)}")
 
-    # for i in range(Length):
-    #     diff = i - centre                # signed offset
-    #     kernel[(diff % N)] += base[i]  # safe modulo in nopython
-    #     # kernel[(diff % N + N) % N] += base[i]  # safe modulo in nopython
+        original = variable.belief.copy()
 
-    # # normalise k to sum 1 (robust even if base was all zeros)
-    # _normalise_vector_inplace(kernel)
+        # Find best Gaussian fit for this variable's belief
+        _, optimal_sigma, optimal_mean = opt.optimise_gaussian_kl(
+            variable.belief, cfg.measurement_range
+        )
+        
+        # Replace belief with Gaussian approximation
+        variable.belief = create_gaussian_distribution(
+            cfg.measurement_range, optimal_sigma, mu=optimal_mean
+        )
+        
+        # Store original for comparison if needed
+        if not hasattr(variable, 'original_belief'):
+            variable.original_belief = original
+    
+    # Convert factor functions to Gaussian
+    print("Converting factor functions...")
+    for i, factor in enumerate(graph.factors):
+        if factor.factor_type == "prior":
+            _, opt_sig, opt_mean = opt.optimise_gaussian_kl(factor.function, cfg.measurement_range)
+            
+            factor.function = create_gaussian_distribution(cfg.measurement_range, opt_sig, mu=opt_mean)
+            
+            
+        elif factor.factor_type == "smoothing":
+            # Convert pairwise smoothing factors
+            # For 2D factor functions, we need a different approach
+            factor.function = convert_pairwise_factor_to_gaussian(factor.function)
+    
+    print("Gaussian conversion complete!")
+    return graph
 
-    # # --- build the circulant matrix: each row is a rotation of kernel
-    # mat = np.empty((N, N), dtype=np.float64)
-    # for x1 in range(N):
-    #     # row x1: f(x1, x2) = k[(x2 - x1) mod N]
-    #     for x2 in range(N):
-    #         diff = (x2 - x1) % N
-    #         mat[x1, x2] = kernel[diff]
-
-    return mat
+def convert_pairwise_factor_to_gaussian(factor_matrix):
+    """
+    Convert a 2D pairwise factor matrix to a Gaussian form
+    """
+    height, width = factor_matrix.shape
+    original_kernel = factor_matrix[height//2,:]
+    
+    kernel_range = np.linspace(cfg.min_measurement, cfg.max_measurement, width, dtype=np.float64)
+    
+    _, opt_sig, opt_mean = opt.optimise_gaussian_kl(original_kernel, kernel_range)
+    
+    gaussian_kernel = create_gaussian_distribution(kernel_range, opt_sig, mu=opt_mean)
+    gaussian_smoothing_function = create_smoothing_factor_distribution(len(kernel_range), kernel=gaussian_kernel)
+    
+    return normalise_rows(gaussian_smoothing_function)

@@ -60,9 +60,7 @@ class RealTimeConsoleCapture:
 
 def run_belief_propagation_with_progress(graph, ground_truth, num_iterations, console_placeholder, mode="loopy"):
     """Run belief propagation with real-time console updates"""
-    # Store initial beliefs
-    # initial_beliefs = fg.save_beliefs(graph)
-    
+
     mse_values = []
 
     # Calculate initial MSE (iteration 0)
@@ -442,7 +440,7 @@ def main():
         st.plotly_chart(factor_2d_fig, use_container_width=True)
     
     with col3:
-        gaussian_matrix = bp.convert_pairwise_factor_to_gaussian(pairwise_factor_matrix)
+        gaussian_matrix = dm.convert_pairwise_factor_to_gaussian(pairwise_factor_matrix)
         # diff_matrix = gaussian_matrix - pairwise_factor_matrix
         # Create 2D heatmap
         factor_2d_gauss_fig = px.imshow(
@@ -487,6 +485,7 @@ def main():
                 variable.belief = factor.function
     
     st.session_state['beliefs_before_bp'] = fg.save_beliefs(graph)
+    st.session_state['factors_before_bp'] = fg.save_factor_functions(graph)
     st.session_state['kl_before_bp'] = opt.get_kl_from_graph(graph)
     disparity_vol_pre_bp = ip.get_disparity_from_graph(graph)
 
@@ -512,8 +511,9 @@ def main():
         if 'graph_after_bp' in st.session_state:
             del st.session_state['graph_after_bp']
 
-        # Reset to initial beliefs
+        # Reset to initial state
         fg.restore_beliefs(graph, st.session_state['beliefs_before_bp'])
+        fg.restore_factor_functions(graph, st.session_state['factors_before_bp'])
 
         console_placeholder.code("Starting belief propagation...")
 
@@ -531,8 +531,7 @@ def main():
 
             ### Then restore original beliefs
             fg.restore_beliefs(graph, st.session_state['beliefs_before_bp'])
-            for i, variable in enumerate(graph.variables):
-                variable.belief = st.session_state['beliefs_before_bp'][i].copy()
+            fg.restore_factor_functions(graph, st.session_state['factors_before_bp'])
             
             console_placeholder.code("Original beliefs restored, now running GBP...")
 
@@ -546,6 +545,7 @@ def main():
 
             ### Then restore original beliefs again
             fg.restore_beliefs(graph, st.session_state['beliefs_before_bp'])
+            fg.restore_factor_functions(graph, st.session_state['factors_before_bp'])
         
         # Final update
         console_placeholder.code("GBP completed successfully!")
