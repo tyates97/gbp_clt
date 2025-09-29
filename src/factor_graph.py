@@ -205,7 +205,7 @@ class FactorGraph:
                     child = variables[next_var_idx]
                     next_var_idx += 1
                     pairwise_function = dm.create_smoothing_factor_distribution(
-                        belief_discretisation, prior=dm.create_random_prior_distribution(child.belief)
+                        belief_discretisation, kernel=dm.create_random_prior_distribution(child.belief)
                     )
                     self.add_factor([parent, child], function=pairwise_function)
                     queue.append(child)
@@ -244,7 +244,7 @@ class FactorGraph:
         return connections_array[:count]
 
 
-    def add_grid_pairwise_factors(self, num_cols=None, hist=None):
+    def add_grid_pairwise_factors(self, num_cols=None, kernel=None):
         """
         Adds pairwise factors to a grid graph. This function orchestrates the process:
         1. Calls a fast, JIT-compiled helper to calculate connection indices.
@@ -271,7 +271,7 @@ class FactorGraph:
             var2 = self.variables[j]
             
             # Create a new smoothing function for each factor
-            pairwise_function = dm.create_smoothing_factor_distribution(belief_discretisation, hist=hist)
+            pairwise_function = dm.create_smoothing_factor_distribution(belief_discretisation, kernel=kernel)
             
             self.add_factor([var1, var2], pairwise_function)
 
@@ -284,11 +284,11 @@ class FactorGraph:
                 
         
 
-    def add_pairwise_factors(self, num_loops, measurement_range, branching_factor, branching_probability, num_cols=None, hist=None):
+    def add_pairwise_factors(self, num_loops, measurement_range, branching_factor, branching_probability, num_cols=None, kernel=None):
         if self.is_tree:            
             self.add_tree_pairwise_factors(branching_factor, branching_probability)
         elif self.is_grid:
-            self.add_grid_pairwise_factors(num_cols=num_cols, hist=hist)
+            self.add_grid_pairwise_factors(num_cols=num_cols, kernel=kernel)
         else:
             self.add_loopy_pairwise_factors(num_loops, measurement_range)
 
@@ -304,7 +304,7 @@ class FactorGraph:
 ''' functions '''
 
 #TODO: make the number of arguments being passed here more efficient
-def build_factor_graph(num_variables, num_priors, num_loops, graph_type, measurement_range, prior_location, branching_factor=2, branching_probability=1.0, hist=None):
+def build_factor_graph(num_variables, num_priors, num_loops, graph_type, measurement_range, prior_location, branching_factor=2, branching_probability=1.0, kernel=None):
     print("Building factor graph...")
     # Create a factor graph
     graph = FactorGraph()
@@ -312,7 +312,7 @@ def build_factor_graph(num_variables, num_priors, num_loops, graph_type, measure
     if graph_type == 'Tree': graph.is_tree = True
     elif graph_type == 'Grid': graph.is_grid =  True
     graph.add_variables(num_variables, belief_discretisation)
-    graph.add_pairwise_factors(num_loops, measurement_range, branching_factor, branching_probability, hist=hist)
+    graph.add_pairwise_factors(num_loops, measurement_range, branching_factor, branching_probability, kernel=kernel)
     graph.add_priors(num_priors, measurement_range, prior_location)
     return graph
 
@@ -326,7 +326,7 @@ def get_graph_from_pdf_hist(pdf_volume, hist=None):
     graph.is_grid = True
     graph.grid_cols = width
     graph.add_variables(num_variables, belief_discretisation=pdf_volume.shape[2])
-    graph.add_pairwise_factors(0, cfg.measurement_range, 1, 1, num_cols=graph.grid_cols, hist=hist)
+    graph.add_pairwise_factors(0, cfg.measurement_range, 1, 1, num_cols=graph.grid_cols, kernel=hist)
     graph.add_priors_from_pdf(pdf_volume)
 
     return graph

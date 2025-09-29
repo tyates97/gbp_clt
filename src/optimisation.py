@@ -188,13 +188,15 @@ def kl_divergence_numba(p, q):
 @numba.jit(nopython=True)
 def optimise_gaussian_kl(y_values, x_values):
     """Find Gaussian that minimizes KL divergence from target_belief"""
-    sigma_min = 0.25
-    sigma_max = (x_values[-1] - x_values[0]) / 2.0
+    sigma_min = 0.1
+    # sigma_max = (x_values[-1] - x_values[0]) / 2.0
+    sigma_max = (x_values[-1] - x_values[0]) * 10.0
     num_sigma_steps = 100
     
     # optimal_mean = np.sum(measurement_range * target_belief)
     optimal_mean = x_values[np.argmax(y_values)]
-    sigma_search_values = np.linspace(sigma_min, sigma_max, num_sigma_steps)
+    # sigma_search_values = np.linspace(sigma_min, sigma_max, num_sigma_steps)
+    sigma_search_values = np.logspace(np.log10(sigma_min), np.log10(sigma_max), num_sigma_steps)
     min_kl = float('inf')
     optimal_sigma = None
         

@@ -496,10 +496,15 @@ def plot_pixel_belief_with_gaussian(data_source, x, y, measurement_range, cols=N
         line=dict(color='red', dash='dash')
     ))
     
+    # ensure y-axis always starts at 0
+    max_val = max(float(np.max(belief)), float(np.max(gaussian_fit)))
+    y_top = max_val * 1.1 if max_val > 0 else 1.0
+
     fig.update_layout(
         title=f"Belief vs Gaussian Fit at Pixel (x={x}, y={y})",
         xaxis_title="Disparity",
         yaxis_title="Probability",
+        yaxis = dict(range=[0, y_top], autorange=False),
         height=400
     )
     

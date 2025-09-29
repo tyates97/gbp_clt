@@ -453,16 +453,11 @@ def main():
         if cfg.smoothing_function == 'histogram':
             pairwise_factor_matrix = dm.create_smoothing_factor_distribution(
                 cfg.max_measurement, 
-                kernel=None, 
-                hist=histogram_kernel,
-                smoothing_function="histogram"
+                kernel=histogram_kernel
             )
         else:  # triangular
             pairwise_factor_matrix = dm.create_smoothing_factor_distribution(
-                cfg.max_measurement, 
-                kernel=None, 
-                hist=None,  # This will trigger the triangular kernel creation
-                smoothing_function="triangular"
+                cfg.max_measurement
             )
 
         # Create 2D heatmap
