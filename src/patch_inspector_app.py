@@ -246,9 +246,12 @@ def load_images():
         ground_truth = cv2.imread(image_dir + left_ground_truth_filename, cv2.IMREAD_GRAYSCALE)/4
         
         # resizing for faster processing
-        left_image = ip.crop_image(left_image, (150, 200))
-        right_image = ip.crop_image(right_image, (150, 200))
-        ground_truth = ip.crop_image(ground_truth, (150, 200))
+        # left_image = ip.crop_image(left_image, (150, 200))
+        # right_image = ip.crop_image(right_image, (150, 200))
+        # ground_truth = ip.crop_image(ground_truth, (150, 200))
+        left_image = left_image[150:300, 250:450]
+        right_image = right_image[150:300, 250:450]
+        ground_truth = ground_truth[150:300, 250:450]
 
 
         cfg.max_measurement = int(np.ceil(np.max(ground_truth)))
