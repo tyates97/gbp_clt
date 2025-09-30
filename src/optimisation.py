@@ -121,10 +121,30 @@ def get_mse_from_graph(graph):
 
 @numba.jit(nopython=True)
 def get_mse_from_truth(image, ground_truth):
-    error = (image-ground_truth)
-    squared_error = error**2
-    mse = np.mean(squared_error)
-    return mse
+    # error = (image-ground_truth)
+    # squared_error = error**2
+    # mse = np.mean(squared_error)
+    ''' Compute MSE ignoring occluded pixels (ground truth == 0).
+    Returns np.nan if all pixels are occluded.'''
+
+    # print("shapes:", image.shape, ground_truth.shape)
+    # print("image min/max:", np.nanmin(image), np.nanmax(image))
+    # print("gt   min/max:", np.nanmin(ground_truth), np.nanmax(ground_truth))
+    # print("non-occluded count:", np.count_nonzero(ground_truth != 0))
+
+    total = 0.0
+    count = 0
+    height, width = image.shape
+    for row in range(height):
+        for col in range(width):
+            truth = ground_truth[row, col]
+            if truth != 0:
+                diff = float(image[row, col]) - float(truth)
+                total += diff**2
+                count += 1
+    if count == 0:
+        return np.nan
+    return total/count
 
 
 

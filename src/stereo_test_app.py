@@ -58,38 +58,7 @@ class RealTimeConsoleCapture:
         with self.lock:
             return ''.join(self.contents)
 
-# def run_belief_propagation_with_progress(graph, ground_truth, num_iterations, console_placeholder, mode="loopy"):
-#     """Run belief propagation with real-time console updates"""
 
-#     mse_values = []
-
-#     # Calculate initial MSE (iteration 0)
-#     disparity_map = ip.get_disparity_from_graph(graph)
-#     initial_mse = opt.get_mse_from_truth(disparity_map, ground_truth[:, 35:])
-#     mse_values.append(initial_mse)
-    
-#     # Create a real-time console capture
-#     console_capture = RealTimeConsoleCapture(console_placeholder)
-    
-#     # Redirect stdout to our custom capture
-#     original_stdout = sys.stdout
-    
-#     if mode == "loopy":
-#         try:
-#             sys.stdout = console_capture
-#             result_graph = bp.run_belief_propagation(graph, num_iterations)
-#             return result_graph
-#         finally:
-#             sys.stdout = original_stdout
-#     elif mode == "gbp":
-#         try:
-#             sys.stdout = console_capture
-#             result_graph = bp.run_gaussian_belief_propagation(graph, cfg.num_iterations)
-#             return result_graph
-#         finally:
-#             sys.stdout = original_stdout
-
-''' test '''
 def run_belief_propagation_with_progress_and_mse(graph, ground_truth, num_iterations, console_placeholder, mode="loopy"):
     """Run belief propagation with real-time console updates and MSE tracking"""
     
@@ -99,21 +68,12 @@ def run_belief_propagation_with_progress_and_mse(graph, ground_truth, num_iterat
     # Redirect stdout to our custom capture
     original_stdout = sys.stdout
     
-    # if mode == "loopy":
     try:
         sys.stdout = console_capture
         result_graph, mse_values = bp.run_bp_stateful_with_mse_tracking(graph, ground_truth, num_iterations, mode=mode)
         return result_graph, mse_values
     finally:
         sys.stdout = original_stdout
-    # elif mode == "gbp":
-    #     try:
-    #         sys.stdout = console_capture
-    #         result_graph, mse_values = bp.run_gaussian_belief_propagation_with_mse_tracking(graph, ground_truth, num_iterations)
-    #         return result_graph, mse_values
-    #     finally:
-    #         sys.stdout = original_stdout
-''' end test '''
 
 
 @st.cache_data
@@ -131,8 +91,8 @@ def load_images():
         right_image = cv2.imread(image_dir + right_image_filename, cv2.IMREAD_GRAYSCALE)/4
         ground_truth = cv2.imread(image_dir + left_ground_truth_filename, cv2.IMREAD_GRAYSCALE)/4
         
-        st.write(left_image.shape)
-        st.write(right_image.shape)
+        # st.write(left_image.shape)
+        # st.write(right_image.shape)
         
         # reszing for faster processing
         left_image = left_image[150:300, 250:450]
@@ -159,9 +119,9 @@ def compute_pdf_volume(cost_volume, lambda_param):
     return ip.get_pdfs_from_costs(cost_volume)
 
 @st.cache_resource()
-def build_factor_graph_cached(pdf_volume, smoothing_kernel):
+def build_factor_graph_cached(pdf_volume, smoothing_kernel, horizontal_edge_mask=None, vertical_edge_mask=None):
     """Build and cache the factor graph"""
-    return fg.get_graph_from_pdf_hist(pdf_volume, smoothing_kernel)
+    return fg.get_graph_from_pdf_hist(pdf_volume, smoothing_kernel, horizontal_edge_mask=horizontal_edge_mask, vertical_edge_mask = vertical_edge_mask)
 
 
 
@@ -176,6 +136,8 @@ def main():
     
     # Load images
     left_image, right_image, ground_truth = load_images()
+
+
     
     if left_image is None:
         st.stop()
@@ -188,8 +150,9 @@ def main():
     ### --- Configuration parameters --- ###
     st.sidebar.header("Parameters")
     patch_size = int(np.sqrt(st.sidebar.selectbox("Patch Size", [9, 25, 49], index=1)))
+    patch_width = patch_size//2
     # use_gaussian_bp = st.sidebar.checkbox("Use Gaussian Belief Propagation", value=False)
-    cfg.num_iterations = st.sidebar.slider("BP Iterations", 1, 20, 10)
+    cfg.num_iterations = st.sidebar.slider("BP Iterations", 1, 200, 10)
 
     # Store selected parameters (don't apply them yet)
     selected_cost_function = st.sidebar.selectbox("Select Cost Function", 
@@ -276,6 +239,28 @@ def main():
         st.subheader("Right Image")
         st.image(right_image/np.max(right_image), use_container_width=True, clamp=True)
 
+
+    ### Edge Mask Section
+    st.header("Edge Masks")
+    horizontal_edges, vertical_edges = ip.compute_edge_masks_from_intensity(left_image, edge_threshold=5.0)
+    horizontal_edges = horizontal_edges[patch_width:-patch_width, cfg.max_measurement:-patch_width]
+    vertical_edges = vertical_edges[patch_width:-patch_width, cfg.max_measurement:-patch_width]
+    combined_edges = horizontal_edges[:-1,:]+vertical_edges[:,:-1]
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.subheader("Horizontal Edge Mask")
+        st.image(horizontal_edges/np.max(horizontal_edges), use_container_width=True, clamp=True)
+    
+    with col2:
+        st.subheader("Vertical Edge Mask")
+        st.image(vertical_edges/np.max(vertical_edges), use_container_width=True, clamp=True)
+
+    with col3: 
+        st.subheader("Combined Edge Mask")
+        st.image(combined_edges/np.max(combined_edges), use_container_width=True, clamp=True)
+
+
     # If parameters haven't been set yet, initialize them
     if not hasattr(cfg, 'cost_function'):
         cfg.cost_function = 'NCC'
@@ -291,7 +276,8 @@ def main():
     # Compute cost and PDF volumes
     with st.spinner("Computing cost volume..."):
         cost_volume = compute_cost_volume(left_image, right_image, patch_size, cfg.max_measurement, cfg.cost_function)
-        cost_volume = cost_volume[:, 35:, :]
+        cost_volume = cost_volume[patch_width:-patch_width, cfg.max_measurement:-patch_width, :]
+        ground_truth = ground_truth[patch_width:-patch_width, cfg.max_measurement:-patch_width]
     
     with st.spinner("Converting costs to PDFs..."):
         pdf_volume = compute_pdf_volume(cost_volume, cfg.lambda_param)
@@ -308,7 +294,7 @@ def main():
     
     with col1:
         # Use the coordinate selector with overlay
-        x_coord, y_coord = gx.create_coordinate_selector(left_image[:, 35:], "Left Image - Use sliders to select coordinates for cost inspection", "cost", cmap="gray")
+        x_coord, y_coord = gx.create_coordinate_selector(left_image[patch_width:-patch_width, cfg.max_measurement:-patch_width], "Left Image - Use sliders to select coordinates for cost inspection", "cost", cmap="gray")
     
     with col2:
         # Calculate and display variance heatmap
@@ -515,9 +501,9 @@ def main():
     
     with st.spinner("Building factor graph..."):
         if cfg.smoothing_function == 'histogram':
-            graph = build_factor_graph_cached(pdf_volume, histogram_kernel)
+            graph = build_factor_graph_cached(pdf_volume, histogram_kernel, horizontal_edge_mask=horizontal_edges, vertical_edge_mask=vertical_edges)
         elif cfg.smoothing_function == 'triangular':
-            graph = build_factor_graph_cached(pdf_volume, triangular_kernel)
+            graph = build_factor_graph_cached(pdf_volume, triangular_kernel, horizontal_edge_mask=horizontal_edges, vertical_edge_mask=vertical_edges)
     
     # Initialize beliefs
     for variable in graph.variables:
@@ -712,7 +698,7 @@ def main():
         with col4:
             st.write("Ground Truth")
             normalised_ground_truth = ground_truth/np.max(ground_truth)
-            st.image(normalised_ground_truth[:, 35:], use_container_width=True, clamp=True)
+            st.image(normalised_ground_truth, use_container_width=True, clamp=True)
 
 
 

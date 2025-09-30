@@ -244,42 +244,73 @@ class FactorGraph:
         return connections_array[:count]
 
 
-    def add_grid_pairwise_factors(self, num_cols=None, kernel=None):
+    def add_grid_pairwise_factors(self, num_cols=None, kernel=None,
+                                  horizontal_edge_mask=None, vertical_edge_mask=None):
         """
         Adds pairwise factors to a grid graph. This function orchestrates the process:
         1. Calls a fast, JIT-compiled helper to calculate connection indices.
         2. Loops through the connections in plain Python to create factor objects.
         """
         num_variables = len(self.variables)
-        
-        if num_cols is None:
-            grid_cols = int(np.ceil(np.sqrt(num_variables)))
-        else:
-            grid_cols = num_cols # Use the provided number of columns
-            
+        grid_cols = int(np.ceil(np.sqrt(num_variables))) if num_cols is None else num_cols
         self.grid_cols = grid_cols
-
-        belief_discretisation = len(self.variables[0].belief)
+        discretisation = len(self.variables[0].belief)
 
         # 1. Call the fast helper function to get the numerical connection plan
         connections = self._calculate_grid_connections(num_variables, grid_cols)
 
+        # print(f"horizontal_edge_mask shape: {horizontal_edge_mask.shape}")
+        # print(f"vertical_edge_mask shape: {vertical_edge_mask.shape}")
+        # print(f"image dimensions: ({num_variables//grid_cols}, {grid_cols})")
+
+
         print("Creating pairwise factors...")
         # 2. Iterate through the connection plan and create the actual factor objects
-        for i, j in connections:
-            var1 = self.variables[i]
-            var2 = self.variables[j]
+        for left_index, right_index in connections:
+            var_left = self.variables[left_index]
+            var_right = self.variables[right_index]
+            blocked=False
             
-            # Create a new smoothing function for each factor
-            pairwise_function = dm.create_smoothing_factor_distribution(belief_discretisation, kernel=kernel)
-            
-            self.add_factor([var1, var2], pairwise_function)
+            # Create a default smoothing function for each factor
+            pairwise_function = dm.create_smoothing_factor_distribution(discretisation, kernel=kernel)
 
+            # Work out whether this connection is horizontal or vertical and check the correct mask
+            row_left = left_index // grid_cols
+            col_left = left_index % grid_cols
+            row_right = right_index // grid_cols
+            col_right = right_index % grid_cols
+
+            is_horizontal = (row_left == row_right) and (col_right == col_left + 1)
+            is_vertical   = (col_left == col_right) and (row_right == row_left + 1)
+
+            if is_horizontal and horizontal_edge_mask is not None:
+                # horizontal mask is defined on boundaries between (y, x-1) and (y, x),
+                # i.e. shape (H, W-1). The boundary index is the right pixel column.
+                blocked = True
+                boundary_y = row_left
+                boundary_x = col_right  # boundary lies between col_right-1 and col_right
+                if 0 <= boundary_y < horizontal_edge_mask.shape[0] and 0 <= boundary_x-1 < horizontal_edge_mask.shape[1]:
+                    if horizontal_edge_mask[boundary_y, boundary_x-1]:
+                        pairwise_function = dm.create_uniform_pairwise_factor(discretisation)
             
-            if len(self.factors) % 34000 == 0:
+            if is_vertical and vertical_edge_mask is not None:
+                # vertical mask is defined on boundaries between (y-1, x) and (y, x),
+                # i.e. shape (H-1, W). The boundary index is the lower pixel row.
+                blocked = True
+                boundary_y = row_right  # boundary lies between row_right-1 and row_right
+                boundary_x = col_left
+                if 0 <= boundary_y-1 < vertical_edge_mask.shape[0] and 0 <= boundary_x < vertical_edge_mask.shape[1]:
+                    if vertical_edge_mask[boundary_y-1, boundary_x]:
+                        pairwise_function = dm.create_uniform_pairwise_factor(discretisation)
+
+            if blocked:
+                self.add_factor([var_left, var_right], pairwise_function, factor_type="blocked")
+            else:
+                self.add_factor([var_left, var_right], pairwise_function)
+            
+            if len(self.factors) % 15000 == 0:
                 percentage_processed = int((len(self.factors)/len(connections))*100)    
                 print(f"{percentage_processed}% of pairwise factors added.")
-
         print("All pairwise factors added.")
                 
         
@@ -316,17 +347,16 @@ def build_factor_graph(num_variables, num_priors, num_loops, graph_type, measure
     graph.add_priors(num_priors, measurement_range, prior_location)
     return graph
 
-def get_graph_from_pdf_hist(pdf_volume, hist=None):
+def get_graph_from_pdf_hist(pdf_volume, hist=None, horizontal_edge_mask=None, vertical_edge_mask=None):
     print("Building factor graph from PDF volume...")
-    height = pdf_volume.shape[0]
-    width = pdf_volume.shape[1]
+    height, width, disparity_bins = pdf_volume.shape
     
     graph = FactorGraph()
     num_variables = height*width
     graph.is_grid = True
     graph.grid_cols = width
-    graph.add_variables(num_variables, belief_discretisation=pdf_volume.shape[2])
-    graph.add_pairwise_factors(0, cfg.measurement_range, 1, 1, num_cols=graph.grid_cols, kernel=hist)
+    graph.add_variables(num_variables, belief_discretisation=disparity_bins)
+    graph.add_grid_pairwise_factors(num_cols=graph.grid_cols, kernel=hist, horizontal_edge_mask=horizontal_edge_mask, vertical_edge_mask=vertical_edge_mask)
     graph.add_priors_from_pdf(pdf_volume)
 
     return graph

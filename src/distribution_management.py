@@ -279,9 +279,18 @@ def convert_graph_to_gaussian(graph):
             
             
         elif factor.factor_type == "smoothing":
-            # Convert pairwise smoothing factors
-            # For 2D factor functions, we need a different approach
-            factor.function = convert_pairwise_factor_to_gaussian(factor.function)
+            # # if factor rows are ~uniform, keep them uniform
+            # fm = factor.function
+            # row = fm[0]
+            # is_uniform_row = np.allclose(row, np.full_like(row, row.mean()), atol=1e-8)
+            # if is_uniform_row and np.allclose(fm, np.tile(row, (fm.shape[0], 1)), atol=1e-8):
+            #     pass
+            # # else convert them to a Gaussian
+            # else:
+                factor.function = convert_pairwise_factor_to_gaussian(factor.function)
+        
+        elif factor.factor_type == "blocked":
+            continue
     
     print("Gaussian conversion complete!")
     return graph
@@ -301,3 +310,11 @@ def convert_pairwise_factor_to_gaussian(factor_matrix):
     gaussian_smoothing_function = create_smoothing_factor_distribution(len(kernel_range), kernel=gaussian_kernel)
     
     return normalise_rows(gaussian_smoothing_function)
+
+def create_uniform_pairwise_factor(discretisation: int):
+    """
+    Returns a (discretisation x discretisation) matrix where every entry is equal.
+    After row-normalisation, the factor sends a uniform message (no coupling).
+    """
+    factor = np.ones((discretisation, discretisation), dtype=np.float64)
+    return normalise_rows(factor)

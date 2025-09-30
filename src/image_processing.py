@@ -105,3 +105,33 @@ def get_disparity_from_graph(graph):
         disparity_volume[row][col] = MAP_disparity
     
     return disparity_volume
+
+def compute_edge_masks_from_intensity(
+    grayscale_image: np.ndarray,
+    edge_threshold=20.0
+):
+    """
+    Returns two boolean masks:
+      - horizontal_edge_mask[y, x] == True means an edge between (y, x-1) and (y, x)
+      - vertical_edge_mask[y, x]   == True means an edge between (y-1, x) and (y, x)
+
+    The detector is intentionally simple: an edge is declared if the absolute pixel
+    difference across the boundary exceeds `edge_threshold`.
+    """
+    if grayscale_image.ndim != 2:
+        raise ValueError("compute_edge_masks_from_intensity expects a 2D (grayscale) image")
+
+    image = grayscale_image.astype(np.float32)
+
+    # Horizontal boundaries: compare left vs right neighbours
+    # Shape: (H, W-1) — boundary at position x is between (x-1) and (x)
+    horizontal_diffs = np.abs(image[:, 1:] - image[:, :-1])
+    horizontal_edge_mask = horizontal_diffs > edge_threshold
+
+    # Vertical boundaries: compare top vs bottom neighbours
+    # Shape: (H-1, W) — boundary at position y is between (y-1) and (y)
+    vertical_diffs = np.abs(image[1:, :] - image[:-1, :])
+    vertical_edge_mask = vertical_diffs > edge_threshold
+
+
+    return horizontal_edge_mask, vertical_edge_mask

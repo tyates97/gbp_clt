@@ -286,7 +286,7 @@ def run_bp_stateful_with_mse_tracking(graph, ground_truth, num_iterations, mode=
     
     # Calculate initial MSE
     disparity_map = ip.get_disparity_from_graph(graph)
-    initial_mse = opt.get_mse_from_truth(disparity_map, ground_truth[:, 35:])
+    initial_mse = opt.get_mse_from_truth(disparity_map, ground_truth)
     mse_values.append(initial_mse)
     print(f"Iteration 0 MSE: {initial_mse:.4f}")
     
@@ -306,7 +306,7 @@ def run_bp_stateful_with_mse_tracking(graph, ground_truth, num_iterations, mode=
         fg.restore_beliefs(graph, beliefs)
         # Calculate MSE after this iteration
         disparity_map = ip.get_disparity_from_graph(graph)
-        current_mse = opt.get_mse_from_truth(disparity_map, ground_truth[:, 35:])
+        current_mse = opt.get_mse_from_truth(disparity_map, ground_truth)
         mse_values.append(current_mse)
         
         print(f"Iteration {iteration + 1} MSE: {current_mse:.4f}")
@@ -314,35 +314,3 @@ def run_bp_stateful_with_mse_tracking(graph, ground_truth, num_iterations, mode=
     fg.restore_beliefs(graph, beliefs)
     
     return graph, mse_values
-
-
-# def run_gaussian_belief_propagation_with_mse_tracking(graph, ground_truth, num_iterations):
-#     """
-#     Run Gaussian BP with MSE tracking per iteration
-#     """
-    
-#     mse_values = []
-    
-#     # Convert to Gaussian and calculate initial MSE
-#     gaussian_graph = dm.convert_graph_to_gaussian(graph)
-#     disparity_map = ip.get_disparity_from_graph(gaussian_graph)
-#     initial_mse = opt.get_mse_from_truth(disparity_map, ground_truth[:, 35:])
-#     mse_values.append(initial_mse)
-#     print(f"GBP Iteration 0 MSE: {initial_mse:.4f}")
-    
-#     # Run GBP one iteration at a time to track MSE
-#     for iteration in range(num_iterations):
-#         print(f"Running GBP iteration {iteration + 1}/{num_iterations}...")
-        
-#         # Run single iteration
-#         gaussian_graph = run_belief_propagation(gaussian_graph, 1)
-        
-#         # Calculate MSE after this iteration
-#         disparity_map = ip.get_disparity_from_graph(gaussian_graph)
-#         current_mse = opt.get_mse_from_truth(disparity_map, ground_truth[:, 35:])
-#         mse_values.append(current_mse)
-#         print(f"GBP Iteration {iteration + 1} MSE: {current_mse:.4f}")
-    
-#     return gaussian_graph, mse_values
-
-# ''' end test '''
