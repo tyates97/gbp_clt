@@ -7,6 +7,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 import threading
 import copy
+import io
 
 # Import your modules (assuming they're in the same directory)
 import config as cfg
@@ -18,10 +19,10 @@ import image_processing as ip
 import graphics as gx
 
 # defining a custom colour scale
-excellent_threshold = 0.001      # Very Gaussian (green)
-good_threshold = 0.01           # Reasonably Gaussian
-poor_threshold = 0.05           # Somewhat non-Gaussian (yellow)
-bad_threshold = 0.2             # Non-Gaussian (orange)
+excellent_threshold = 0.01#0.1      # Very Gaussian (green)
+good_threshold = 0.01#0.2           # Reasonably Gaussian
+poor_threshold = 0.05#0.3           # Somewhat non-Gaussian (yellow)
+bad_threshold = 0.2#0.5             # Non-Gaussian (orange)
 custom_colorscale = [
     [0.0, "green"],                                    # 0.0 = perfect (green)
     [excellent_threshold/1.0, "green"],               # 0.001 = still green  
@@ -152,7 +153,7 @@ def main():
     patch_size = int(np.sqrt(st.sidebar.selectbox("Patch Size", [9, 25, 49], index=1)))
     patch_width = patch_size//2
     # use_gaussian_bp = st.sidebar.checkbox("Use Gaussian Belief Propagation", value=False)
-    cfg.num_iterations = st.sidebar.slider("BP Iterations", 1, 200, 10)
+    cfg.num_iterations = st.sidebar.slider("BP Iterations", 1, 2000, 10)
 
     # Store selected parameters (don't apply them yet)
     selected_cost_function = st.sidebar.selectbox("Select Cost Function", 
@@ -233,16 +234,23 @@ def main():
     
     with col1:
         st.subheader("Left Image")
-        st.image(left_image/np.max(left_image), use_container_width=True, clamp=True)
+        left_image_cropped = left_image[patch_width:-patch_width, cfg.max_measurement+patch_width:-patch_width]
+        left_image_cropped_normalised = left_image_cropped/np.max(left_image_cropped)
+        st.image(left_image_cropped_normalised, use_container_width=True, clamp=True)
     
     with col2:
         st.subheader("Right Image")
-        st.image(right_image/np.max(right_image), use_container_width=True, clamp=True)
+        right_image_cropped = right_image[patch_width:-patch_width, cfg.max_measurement+patch_width:-patch_width]
+        right_image_cropped_normalised = right_image_cropped/np.max(left_image_cropped)
+        st.image(right_image_cropped_normalised, use_container_width=True, clamp=True)
+
+
+
 
 
     ### Edge Mask Section
     st.header("Edge Masks")
-    horizontal_edges, vertical_edges = ip.compute_edge_masks_from_intensity(left_image, edge_threshold=5.0)
+    horizontal_edges, vertical_edges = ip.compute_edge_masks_from_intensity(left_image, edge_threshold=3.0)
     horizontal_edges = horizontal_edges[patch_width:-patch_width, cfg.max_measurement:-patch_width]
     vertical_edges = vertical_edges[patch_width:-patch_width, cfg.max_measurement:-patch_width]
     combined_edges = horizontal_edges[:-1,:]+vertical_edges[:,:-1]
@@ -503,7 +511,7 @@ def main():
         if cfg.smoothing_function == 'histogram':
             graph = build_factor_graph_cached(pdf_volume, histogram_kernel, horizontal_edge_mask=horizontal_edges, vertical_edge_mask=vertical_edges)
         elif cfg.smoothing_function == 'triangular':
-            graph = build_factor_graph_cached(pdf_volume, triangular_kernel, horizontal_edge_mask=horizontal_edges, vertical_edge_mask=vertical_edges)
+            graph = build_factor_graph_cached(pdf_volume, triangular_kernel)#, horizontal_edge_mask=horizontal_edges, vertical_edge_mask=vertical_edges)
     
     # Initialize beliefs
     for variable in graph.variables:
@@ -603,7 +611,7 @@ def main():
             iterations = list(range(len(bp_mse)))
             
             fig = go.Figure()
-            
+
             # Add BP line
             fig.add_trace(go.Scatter(
                 x=iterations,
@@ -635,14 +643,20 @@ def main():
                     xanchor="left",
                     x=0.01
                 ),
-                height=400
+                height=500,
+                width=500
             )
             
             # Add grid
             fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
             fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
             
-            st.plotly_chart(fig, use_container_width=True)
+            buf = io.BytesIO()
+            fig.write_image(buf, format='svg')   # uses kaleido
+            buf.seek(0)
+            st.download_button("Download SVG (plotly)", data=buf.getvalue(), file_name="plot.svg", mime="image/svg+xml", key="bp_vs_gbp_mse")
+            
+            st.plotly_chart(fig, use_container_width=False)
             
             # Add summary statistics
             col1, col2 = st.columns(2)
@@ -719,27 +733,69 @@ def main():
         
         with col1:
             st.write("**Pre-BP Gaussian KL Divergence**")
-            # Coordinate selector for pre-BP with overlay
-            pre_x, pre_y = gx.create_coordinate_selector(kl_pre_bp, "Select coordinates for Pre-BP belief analysis", "pre_bp", cmap=custom_colorscale, global_min=global_min, global_max=global_max)
+            # # Coordinate selector for pre-BP with overlay
+            # pre_x, pre_y = gx.create_coordinate_selector(kl_pre_bp, "Select coordinates for Pre-BP belief analysis", "pre_bp", cmap=custom_colorscale, global_min=global_min, global_max=global_max)
             
-            belief_fig_pre = gx.plot_pixel_belief_with_gaussian(st.session_state['beliefs_before_bp'], pre_x, pre_y, cfg.measurement_range, cols=graph.grid_cols, metric="KL", source="array")
-            if belief_fig_pre:
-                st.plotly_chart(belief_fig_pre, use_container_width=True)
+            # belief_fig_pre = gx.plot_pixel_belief_with_gaussian(st.session_state['beliefs_before_bp'], pre_x, pre_y, cfg.measurement_range, cols=graph.grid_cols, metric="KL", source="array")
+            # if belief_fig_pre:
+            #     st.plotly_chart(belief_fig_pre, use_container_width=True)
+
+            # Create variance heatmap plot
+            belief_fig_pre_bp = px.imshow(
+                kl_pre_bp,
+                color_continuous_scale=custom_colorscale,  # Red=Low Var, Green=High Var
+                title="Disparity Variance Per Pixel",
+                labels=dict(x="X", y="Y", color="KL Divergence"),
+            )
+
+            buf = io.BytesIO()
+            belief_fig_pre_bp.write_image(buf, format='svg')   # uses kaleido
+            buf.seek(0)
+            st.download_button("Download SVG (plotly)", data=buf.getvalue(), file_name="plot.svg", mime="image/svg+xml", key="pre_bp_kl")
+
+            belief_fig_pre_bp.update_layout(
+                height=500,
+                width=500
+                )
+            st.plotly_chart(belief_fig_pre_bp, use_container_width=True, key="pre_bp_mse")
+
+
         
         with col2:
             st.write("**Post-BP Gaussian KL Divergence**")
-            # Coordinate selector for post-BP with overlay
-            post_bp_x, post_bp_y = gx.create_coordinate_selector(kl_post_bp, "Select coordinates for Post-BP belief analysis", "post_bp", cmap=custom_colorscale, global_min=global_min, global_max=global_max)
+            # # Coordinate selector for post-BP with overlay
+            # post_bp_x, post_bp_y = gx.create_coordinate_selector(kl_post_bp, "Select coordinates for Post-BP belief analysis", "post_bp", cmap=custom_colorscale, global_min=global_min, global_max=global_max)
             
-            belief_fig_post_bp = gx.plot_pixel_belief_with_gaussian(st.session_state['beliefs_after_bp'], post_bp_x, post_bp_y, cfg.measurement_range, cols=graph.grid_cols, metric="KL", source="array")
-            if belief_fig_post_bp:
-                st.plotly_chart(belief_fig_post_bp, use_container_width=True, key ="post_bp_mse")
+            # belief_fig_post_bp = gx.plot_pixel_belief_with_gaussian(st.session_state['beliefs_after_bp'], post_bp_x, post_bp_y, cfg.measurement_range, cols=graph.grid_cols, metric="KL", source="array")
+            # if belief_fig_post_bp:
+            #     st.plotly_chart(belief_fig_post_bp, use_container_width=True, key ="post_bp_mse")
+            # Create variance heatmap plot
+            belief_fig_post_bp = px.imshow(
+                kl_post_bp,
+                color_continuous_scale=custom_colorscale,  # Red=Low Var, Green=High Var
+                title="Disparity Variance Per Pixel",
+                labels=dict(x="X", y="Y", color="KL Divergence"),
+            )
+
+            buf = io.BytesIO()
+            belief_fig_post_bp.write_image(buf, format='svg')   # uses kaleido
+            buf.seek(0)
+            st.download_button("Download SVG (plotly)", data=buf.getvalue(), file_name="plot.svg", mime="image/svg+xml", key="post_bp_kl")
+            
+            belief_fig_post_bp.update_layout(
+                height=500,
+                width=500
+                )
+            st.plotly_chart(belief_fig_post_bp, use_container_width=True, key="post_bp_mse")
+
         
         with col3:
             st.write("**Post-GBP Gaussian KL Divergence**")
             # Coordinate selector for post-BP with overlay
             post_gbp_x, post_gbp_y = gx.create_coordinate_selector(kl_post_gbp, "Select coordinates for Post-GBP belief analysis", "post_gbp", cmap=custom_colorscale, global_min=global_min, global_max=global_max)
             
+
+
             belief_fig_post_gbp = gx.plot_pixel_belief_with_gaussian(st.session_state['beliefs_after_gbp'], post_gbp_x, post_gbp_y, cfg.measurement_range, cols=graph.grid_cols, metric="KL", source="array")
             if belief_fig_post_gbp:
                 st.plotly_chart(belief_fig_post_gbp, use_container_width=True, key ="post_gbp_mse")

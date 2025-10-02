@@ -579,13 +579,23 @@ def create_coordinate_selector(image_data, title, key_prefix, cmap="gray", globa
         )
     
     # Create the heatmap with fixed scale
-    fig = px.imshow(
-        image_data,
-        color_continuous_scale=cmap,  # Red=high KL, Green=low KL
-        zmin=0,
-        title=title,
-        labels=dict(x="X", y="Y", color=scale_label)
-    )
+    if global_min and global_max:
+        fig = px.imshow(
+            image_data,
+            color_continuous_scale=cmap,  # Red=high KL, Green=low KL
+            zmin=0,
+            title=title,
+            labels=dict(x="X", y="Y", color=scale_label),
+            range_color=(global_min, global_max)
+        )
+    else:
+        fig = px.imshow(
+            image_data,
+            color_continuous_scale=cmap,  # Red=high KL, Green=low KL
+            zmin=0,
+            title=title,
+            labels=dict(x="X", y="Y", color=scale_label)
+        )
     
     # Add a red point at the selected coordinates
     fig.add_trace(go.Scatter(

@@ -286,22 +286,22 @@ class FactorGraph:
             if is_horizontal and horizontal_edge_mask is not None:
                 # horizontal mask is defined on boundaries between (y, x-1) and (y, x),
                 # i.e. shape (H, W-1). The boundary index is the right pixel column.
-                blocked = True
                 boundary_y = row_left
                 boundary_x = col_right  # boundary lies between col_right-1 and col_right
                 if 0 <= boundary_y < horizontal_edge_mask.shape[0] and 0 <= boundary_x-1 < horizontal_edge_mask.shape[1]:
                     if horizontal_edge_mask[boundary_y, boundary_x-1]:
                         pairwise_function = dm.create_uniform_pairwise_factor(discretisation)
+                        blocked = True
             
             if is_vertical and vertical_edge_mask is not None:
                 # vertical mask is defined on boundaries between (y-1, x) and (y, x),
                 # i.e. shape (H-1, W). The boundary index is the lower pixel row.
-                blocked = True
                 boundary_y = row_right  # boundary lies between row_right-1 and row_right
                 boundary_x = col_left
                 if 0 <= boundary_y-1 < vertical_edge_mask.shape[0] and 0 <= boundary_x < vertical_edge_mask.shape[1]:
                     if vertical_edge_mask[boundary_y-1, boundary_x]:
                         pairwise_function = dm.create_uniform_pairwise_factor(discretisation)
+                        blocked = True
 
             if blocked:
                 self.add_factor([var_left, var_right], pairwise_function, factor_type="blocked")
