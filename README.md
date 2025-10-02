@@ -17,7 +17,7 @@ The code is intended to run on a local web browser using [streamlit](https://str
 
 To run the programme, you will need to run the following line in your terminal:
 ```bash
-streamlit run src/app.py
+streamlit run src/stereo_test_app.py
 ```
 ## Script descriptions
 All scripts are contained in the /src directory. A brief description of the purpose of each is contained below:
