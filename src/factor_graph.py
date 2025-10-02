@@ -15,7 +15,8 @@ import config as cfg
 class VariableNode:
     def __init__(self, name, belief_discretisation):
         self.name = name
-        self.belief = dm.normalise(np.ones(belief_discretisation)) # Initialised belief
+        # self.belief = dm.normalise(np.ones(belief_discretisation)) # Initialised belief
+        self.belief = dm.create_random_prior_distribution(cfg.measurement_range)
         self.neighbors = []
 
     def add_neighbor(self, factor_node):

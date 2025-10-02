@@ -98,6 +98,8 @@ def run_belief_propagation(graph, num_iterations):
     """
     print("BP Stage 1: Converting graph to numerical representation...")
 
+    if num_iterations == 0:
+        pass
     num_variables = len(graph.variables)
     num_factors = len(graph.factors)
     discretisation = len(graph.variables[0].belief)

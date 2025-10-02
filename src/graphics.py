@@ -122,12 +122,12 @@ def plot_final_beliefs(fig, gs, variables_to_plot, measurement_range, y_max, num
             ax.plot(measurement_range, var.belief)
 
             # min_mse, optimal_sigma = optimise_gaussian(variable_to_optimise_for.belief, measurement_range)
-            min_mse, gaussian_sigma, gaussian_mu = opt.optimise_gaussian(var.belief, measurement_range)
+            min_kl, gaussian_sigma, gaussian_mu = opt.optimise_gaussian_kl(var.belief, measurement_range)
             y_gauss = dm.create_gaussian_distribution(measurement_range, gaussian_sigma, mu=gaussian_mu)
             if show_comparison:
                 ax.plot(measurement_range, y_gauss, color='green', label='Gaussian')
 
-            ax.set_title(f'{var.name} - MSE: {min_mse:.2e}')
+            ax.set_title(f'{var.name} - KL Divergence: {min_kl:.2e}')
             ax.set_ylim(0, y_max)
             ax.set_ylabel('Probability')
 
@@ -191,18 +191,18 @@ def plot_factor_graph(fig, gs, graph):
 ### Plot a heatmap of how Gaussian each variables' belief is
 def plot_heatmap(fig, gs, graph, measurement_range, cmap='viridis'):
     """
-    Overlay a heatmap onto the factor-graph panel showing per-variable gaussian-fit MSE.
+    Overlay a heatmap onto the factor-graph panel showing per-variable gaussian-fit KL Divergence.
     Called after plot_factor_graph so it draws on the same right-hand axes (gs[:,-1]).
     """
-    # compute per-variable MSEs
+    # compute per-variable KL Divergence
     var_nodes = [v.name for v in graph.variables]
     node_vals = []
     for v in graph.variables:
         if v.belief is None or len(v.belief) == 0:
             node_vals.append(np.nan)
         else:
-            mse, _, _ = opt.optimise_gaussian(v.belief, measurement_range)
-            node_vals.append(mse)
+            kl, _, _ = opt.optimise_gaussian_kl(v.belief, measurement_range)
+            node_vals.append(kl)
     node_vals = np.array(node_vals, dtype=float)
 
     # prepare positions (same logic as plot_factor_graph)
@@ -219,6 +219,12 @@ def plot_heatmap(fig, gs, graph, measurement_range, cmap='viridis'):
 
     # Draw overlay on the factor-graph axis
     ax = fig.add_subplot(gs[:,-1])
+    ax.set_aspect('equal', adjustable='box')
+    try:
+        # matplotlib ≥ 3.3 keeps the axes box perfectly square
+        ax.set_box_aspect(1)
+    except Exception:
+        pass
     valid = ~np.isnan(node_vals)
     if np.any(valid):
         vmin = float(np.nanmin(node_vals))
@@ -237,7 +243,7 @@ def plot_heatmap(fig, gs, graph, measurement_range, cmap='viridis'):
     sm = plt.cm.ScalarMappable(cmap=cmap, norm=Normalize(vmin=vmin, vmax=vmax))
     sm = plt.cm.ScalarMappable(cmap=cmap_to_use, norm=Normalize(vmin=vmin, vmax=vmax))
     sm.set_array([])  # required for colorbar
-    fig.colorbar(sm, ax=ax, fraction=0.046, pad=0.04).set_label('Gaussian fit MSE')
+    fig.colorbar(sm, ax=ax, fraction=0.046, pad=0.04).set_label('KL Divergence from Optimised Gaussian')
 
     # # redraw labels for variables only (so labels remain readable)
     # var_labels = {name: name for name in var_nodes}
@@ -362,12 +368,12 @@ def plot_variance_heatmap(pdf_volume):
 
 
 def plot_gaussian_heatmap(graph, title):
-    ### Plotting MSE for each variable
-    mse_volume = opt.get_mse_from_graph(graph)
+    ### Plotting KL for each variable
+    kl_volume = opt.get_kl_from_graph(graph)
 
     plt.figure(title)
-    im = plt.imshow(mse_volume, cmap='RdYlGn_r')
-    plt.colorbar(im, label=f'MSE (lower = more Gaussian, {title}')
+    im = plt.imshow(kl_volume, cmap='RdYlGn_r')
+    plt.colorbar(im, label=f'KL Divergence (lower = more Gaussian, {title}')
     plt.axis('off')
     plt.tight_layout()
 

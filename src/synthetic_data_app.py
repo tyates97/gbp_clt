@@ -17,7 +17,7 @@ st.title("Interactive Factor Graph Belief Propagation")
 # Sidebar controls
 st.sidebar.title("Controls")
 st.sidebar.subheader("Factor Graph Configuration")
-cfg.num_variables = st.sidebar.slider("Number of Variables", 2, 200, 100)
+cfg.num_variables = st.sidebar.slider("Number of Variables", 2, 2000, 992)
 cfg.graph_type = st.sidebar.selectbox("Graph Type",['Grid', 'Tree', 'Loopy'])
 cfg.show_comparison = st.sidebar.checkbox("Show Gaussian best fit", value=True)
 if cfg.graph_type == 'Tree':
@@ -26,7 +26,7 @@ elif cfg.graph_type == 'Grid':
     cfg.prior_location = st.sidebar.selectbox("Prior Location", ['corners', 'top', 'random'])
 else:
     cfg.prior_location = 'root'
-cfg.num_priors = st.sidebar.slider("Number of Priors", 1, cfg.num_variables, 30)
+cfg.num_priors = st.sidebar.slider("Number of Priors", 1, cfg.num_variables, 300)
 
 # Loopy Graphs submenu
 if cfg.graph_type == 'Loopy':
@@ -46,7 +46,7 @@ if cfg.graph_type == 'Grid':
 
 # Additional variables
 st.sidebar.subheader("Belief Propagation Configuration")
-cfg.num_iterations = st.sidebar.slider("Number of BP Iterations", 1, 20, cfg.num_iterations)
+cfg.num_iterations = st.sidebar.slider("Number of BP Iterations", 0, 1000, 200)
 cfg.belief_discretisation = st.sidebar.slider("Belief Discretisation", 8, 128, cfg.belief_discretisation, step=4)
 cfg.prior_width = st.sidebar.slider("Prior Width", 4, int(cfg.max_measurement), cfg.prior_width, step=4)
 cfg.smoothing_width = st.sidebar.slider("Smoothing Width", 4, int(cfg.max_measurement), cfg.smoothing_width, step=4)
@@ -76,7 +76,13 @@ graph = build_factor_graph(
     cfg.branching_probability
     # , hist=smoothing_kernel
 )
+
+# print(graph.variables[20].belief)
+
 graph = run_belief_propagation(graph, cfg.num_iterations)
+
+# print(graph.variables[20].belief)
+
 
 # Plotting
 st.subheader("Results")
@@ -94,30 +100,30 @@ st.pyplot(fig)
 
 length_to_priors = list(opt.find_all_nearest_priors(graph).values())
 # get all MSEs to best-fit gaussian
-gauss_mse = []
+gauss_kl = []
 for variable in graph.variables:
-    min_mse,_,_ = opt.optimise_gaussian(variable.belief, cfg.measurement_range)
-    gauss_mse.append(min_mse)
+    min_kl,_,_ = opt.optimise_gaussian_kl(variable.belief, cfg.measurement_range)
+    gauss_kl.append(min_kl)
 
 # Group MSEs by distance
-mse_by_distance = collections.defaultdict(list)
-for dist, mse in zip(length_to_priors, gauss_mse):
-    mse_by_distance[dist].append(mse)
+kl_by_distance = collections.defaultdict(list)
+for dist, kl in zip(length_to_priors, gauss_kl):
+    kl_by_distance[dist].append(kl)
 
 # Compute mean MSE for each distance
-mean_mse = {dist: np.mean(mse_list) for dist, mse_list in mse_by_distance.items()}
+mean_kl = {dist: np.mean(kl_list) for dist, kl_list in kl_by_distance.items()}
 
 # Sort by distance for plotting
-sorted_distances = sorted(mean_mse.keys())
-sorted_mse = [mean_mse[dist] for dist in sorted_distances]
+sorted_distances = sorted(mean_kl.keys())
+sorted_kl = [mean_kl[dist] for dist in sorted_distances]
 
 # Create the plot
 fig2, ax2 = plt.subplots()
-ax2.plot(sorted_distances, sorted_mse, marker='o')
+ax2.plot(sorted_distances, sorted_kl, marker='o')
 ax2.set_xlabel("Distance to nearest prior")
-ax2.set_ylabel("MSE to best-fit Gaussian")
-ax2.set_title("MSE vs. Distance to Prior")
+ax2.set_ylabel("KL Divergence to best-fit Gaussian")
+ax2.set_title("KL Divergence vs. Distance to Prior")
 
 # Show in a separate Streamlit section or expander
-with st.expander("Show MSE vs. Distance to Prior plot"):
+with st.expander("Show KL Divergence vs. Distance to Prior plot"):
     st.pyplot(fig2)
