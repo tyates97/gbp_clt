@@ -398,6 +398,7 @@ def main():
     cfg.max_measurement = int(np.ceil(np.max(ground_truth)))
     cfg.measurement_range = np.arange(cfg.min_measurement, cfg.max_measurement+0.25, 0.25)
     cfg.belief_discretisation = len(cfg.measurement_range)
+    patch_width = 2
     
     # Compute cost and PDF volumes
     with st.spinner("Computing cost volume..."):
@@ -408,6 +409,44 @@ def main():
     with st.spinner("Converting costs to PDFs..."):
         pdf_volume = compute_pdf_volume(cost_volume, cfg.lambda_param)
 
+    
+    
+    ### --- Input Images Section --- ###
+    st.header("📷 Input Images")
+    col1, col2 = st.columns(2)
+    
+
+        # Define base paths
+    image_dir = 'data/stereo/teddy/'
+    left_image_filename = "im2.png"
+    right_image_filename = "im6.png"
+    left_ground_truth_filename = "disp2.png"
+
+    # Load the images
+    left_image_color = cv2.imread(image_dir + left_image_filename, cv2.IMREAD_COLOR)/4
+    right_image_color = cv2.imread(image_dir + right_image_filename, cv2.IMREAD_COLOR)/4
+
+    # reszing for faster processing
+    left_image_color = left_image_color[150:300, 250:450]
+    right_image_color = right_image_color[150:300, 250:450]
+    # ground_truth = ground_truth[150:300, 250:450]
+
+
+    with col1:
+        st.subheader("Left Image")
+        left_image_cropped = left_image_color[patch_width:-patch_width, cfg.max_measurement+patch_width:-patch_width]
+        left_image_cropped_normalised = left_image_cropped/np.max(left_image_cropped)
+        st.image(left_image_cropped_normalised, use_container_width=True, clamp=True)
+    
+    with col2:
+        st.subheader("Right Image")
+        right_image_cropped = right_image_color[patch_width:-patch_width, cfg.max_measurement+patch_width:-patch_width]
+        right_image_cropped_normalised = right_image_cropped/np.max(left_image_cropped)
+        st.image(right_image_cropped_normalised, use_container_width=True, clamp=True)
+    
+    
+    
+    
     # Interactive cost function inspector
     st.header("💰 Cost Function Inspector")
     

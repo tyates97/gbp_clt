@@ -8,6 +8,7 @@ import plotly.express as px
 import threading
 import copy
 import io
+import os
 
 # Import your modules (assuming they're in the same directory)
 import config as cfg
@@ -96,9 +97,9 @@ def load_images():
         # st.write(right_image.shape)
         
         # reszing for faster processing
-        left_image = left_image[150:300, 250:450]
-        right_image = right_image[150:300, 250:450]
-        ground_truth = ground_truth[150:300, 250:450]
+        left_image = left_image[170:320, 240:440]
+        right_image = right_image[170:320, 240:440]
+        ground_truth = ground_truth[170:320, 240:440]
 
         cfg.max_measurement = int(np.ceil(np.max(ground_truth)))
 
@@ -640,7 +641,7 @@ def main():
                 legend=dict(
                     yanchor="top",
                     y=0.99,
-                    xanchor="left",
+                    xanchor="right",
                     x=0.01
                 ),
                 height=500,
@@ -800,8 +801,26 @@ def main():
             if belief_fig_post_gbp:
                 st.plotly_chart(belief_fig_post_gbp, use_container_width=True, key ="post_gbp_mse")
 
+    EXPORT_DIR = "exports"
+    os.makedirs(EXPORT_DIR, exist_ok=True)
 
+    def _save_npy(var_name: str):
+        val = st.session_state.get(var_name, None)
+        if val is None:
+            st.warning(f"{var_name} not available; run BP/GBP first.")
+            return
+        arr = np.asarray(val)
+        np.save(os.path.join(EXPORT_DIR, f"{var_name}.npy"), arr, allow_pickle=False)
 
+    # if st.sidebar.button("Export BP/GBP variables"):
+    for name in [
+        "bp_mse_values",
+        "gbp_mse_values",
+        "disparity_vol_post_bp",
+        "disparity_vol_post_gbp",
+    ]:
+        _save_npy(name)
+    st.sidebar.success(f"Saved .npy files to ./{EXPORT_DIR}/")
 
 
 if __name__ == "__main__":
