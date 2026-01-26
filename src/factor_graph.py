@@ -81,23 +81,29 @@ class FactorGraph:
         for i in range(num_variables):
             self.add_variable(f'X{i + 1}', belief_discretisation)
 
-    def add_leaf_priors(self, measurement_range):
+    def add_leaf_priors(self, measurement_range, prior_distribution=None):
         for variable in self.variables:
             if len(variable.neighbors) == 1:
-                random_prior_function = dm.create_random_prior_distribution(measurement_range)
+                if prior_distribution is None:
+                    random_prior_function = dm.create_random_prior_distribution(measurement_range)
+                else:
+                    random_prior_function = prior_distribution
                 self.add_factor([variable], random_prior_function, factor_type='prior')
 
-    def add_priors(self, num_priors, measurement_range, prior_location):
+    def add_priors(self, num_priors, measurement_range, prior_location, prior_distribution=None):
         print("Adding prior factors to graph...")
         # if it's a tree and you want priors on the leaf nodes
         if (self.is_tree and prior_location == 'leaf'):
-            self.add_leaf_priors(measurement_range)
+            self.add_leaf_priors(measurement_range, prior_distribution=prior_distribution)
 
         # if it's a tree and you want a prior on the root node
         elif isinstance(prior_location, str) and (prior_location == 'root' or prior_location == 'random'):
             # add a random prior to all leaf nodes
             for i in range(num_priors):
-                random_prior_function = dm.create_random_prior_distribution(measurement_range)
+                if prior_distribution is None:
+                    random_prior_function = dm.create_random_prior_distribution(measurement_range)
+                else:
+                    random_prior_function = prior_distribution
                 self.add_factor([self.variables[i*int((len(self.variables)/num_priors))]], random_prior_function, factor_type='prior')
                 self.num_priors += 1
         
@@ -105,7 +111,10 @@ class FactorGraph:
             i = 0
             for var in self.variables:
                 if i < num_priors:
-                    random_prior_function = dm.create_random_prior_distribution(measurement_range)
+                    if prior_distribution is None:
+                        random_prior_function = dm.create_random_prior_distribution(measurement_range)
+                    else:
+                        random_prior_function = prior_distribution
                     self.add_factor([var], random_prior_function, factor_type='prior')
                     self.num_priors += 1
                     i+=1
@@ -118,14 +127,20 @@ class FactorGraph:
             top_priors = num_priors//2 + num_priors%2
             top_prior_cols = int(np.ceil(np.sqrt(top_priors)))
             for i in range(top_priors):
-                prior_function = dm.create_random_prior_distribution(measurement_range)
+                if prior_distribution is None:
+                    prior_function = dm.create_random_prior_distribution(measurement_range)
+                else:
+                    prior_function = prior_distribution
                 self.add_factor([self.variables[i+i//top_prior_cols*(var_cols-top_prior_cols)]], prior_function, factor_type='prior')
 
             # add priors to the bottom right corner
             bottom_priors = num_priors//2
             bottom_prior_cols = int(np.ceil(np.sqrt(bottom_priors)))
             for i in range(bottom_priors):
-                prior_function = dm.create_random_prior_distribution(measurement_range)
+                if prior_distribution is None:
+                    prior_function = dm.create_random_prior_distribution(measurement_range)
+                else:
+                    prior_function = prior_distribution
                 self.add_factor([self.variables[-1-i-(i//bottom_prior_cols)*(var_cols-bottom_prior_cols)]], prior_function, factor_type='prior')
         
         elif isinstance(prior_location, np.ndarray):
@@ -133,7 +148,10 @@ class FactorGraph:
             flat_depth_map = cfg.depth_map_meters.flatten()
             for i, variable in enumerate(self.variables):
                 if flat_prior_locations[i]:
-                    prior_function = dm.create_random_prior_distribution(cfg.measurement_range, mean=flat_depth_map[i], prior_width=32)
+                    if prior_distribution is None:
+                        prior_function = dm.create_random_prior_distribution(cfg.measurement_range, mean=flat_depth_map[i], prior_width=32)
+                    else:
+                        prior_function = prior_distribution
                     self.add_factor([variable], prior_function, factor_type='prior')
                     self.num_priors += 1
 
@@ -194,7 +212,7 @@ class FactorGraph:
             for i in range(layer_size):
                 parent = queue.pop(0)
                 # Decide if this parent should branch
-                should_branch = (dm.rng.random() < branching_probability) or (i == layer_size - 1 and next_var_idx < num_variables)
+                should_branch = (cfg.rng.random() < branching_probability) or (i == layer_size - 1 and next_var_idx < num_variables)
                 num_children = branching_factor if should_branch else 0
                 # If this is the last parent in the layer and there are still variables left, force at least one child
                 if i == layer_size - 1 and next_var_idx < num_variables and num_children == 0:
@@ -204,8 +222,14 @@ class FactorGraph:
                         break
                     child = variables[next_var_idx]
                     next_var_idx += 1
+
+                    # create a random kernel with width controlled by cfg.smoothing_width
+                    kernel_width = cfg.smoothing_width
+                    random_kernel = cfg.rng.random(kernel_width)
+                    random_kernel = dm.normalise(random_kernel)
+
                     pairwise_function = dm.create_smoothing_factor_distribution(
-                        belief_discretisation, kernel=dm.create_random_prior_distribution(child.belief)
+                        belief_discretisation, kernel=random_kernel
                     )
                     self.add_factor([parent, child], function=pairwise_function)
                     queue.append(child)
@@ -335,7 +359,7 @@ class FactorGraph:
 ''' functions '''
 
 #TODO: make the number of arguments being passed here more efficient
-def build_factor_graph(num_variables, num_priors, num_loops, graph_type, measurement_range, prior_location, branching_factor=2, branching_probability=1.0, kernel=None):
+def build_factor_graph(num_variables, num_priors, num_loops, graph_type, measurement_range, prior_location, branching_factor=2, branching_probability=1.0, kernel=None, prior_distribution=None):
     print("Building factor graph...")
     # Create a factor graph
     graph = FactorGraph()
@@ -344,7 +368,7 @@ def build_factor_graph(num_variables, num_priors, num_loops, graph_type, measure
     elif graph_type == 'Grid': graph.is_grid =  True
     graph.add_variables(num_variables, belief_discretisation)
     graph.add_pairwise_factors(num_loops, measurement_range, branching_factor, branching_probability, kernel=kernel)
-    graph.add_priors(num_priors, measurement_range, prior_location)
+    graph.add_priors(num_priors, measurement_range, prior_location, prior_distribution=prior_distribution)
     return graph
 
 def get_graph_from_pdf_hist(pdf_volume, hist=None, horizontal_edge_mask=None, vertical_edge_mask=None):

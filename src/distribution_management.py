@@ -229,13 +229,21 @@ def create_smoothing_factor_distribution(discretisation, kernel=None, mrange=0, 
     for x1 in range(N):
         # place the kernel centered at x1 with reflection at boundaries
         for i in range(Length):
-            j = x1 + (i - centre)
-            if 0 <= j < N:
-                mat[x1, j] += base[i]
+            
+            # # clipping
+            # j = x1 + (i - centre)
+            # if 0 <= j < N:
+            #     mat[x1, j] += base[i]
+            
+            # # reflected
             # o = i - centre         # signed offset
             # j = x1 + o
             # j_ref = _reflect_index(j, N)
             # mat[x1, j_ref] += base[i]
+
+            # test wraparound
+            j = (x1 + (i - centre)) % N  
+            mat[x1, j] += base[i]
 
         # ensure each row sums to 1 (important near boundaries where folding occurs)
         _normalise_row_inplace(mat[x1])

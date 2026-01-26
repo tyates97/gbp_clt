@@ -83,7 +83,7 @@ def load_images():
     """Load and cache the stereo images and ground truth"""
     try:
         # Define base paths
-        image_dir = 'data/stereo/teddy/'
+        image_dir = 'data/stereo/cones/'
         left_image_filename = "im2.png"
         right_image_filename = "im6.png"
         left_ground_truth_filename = "disp2.png"
@@ -97,9 +97,9 @@ def load_images():
         # st.write(right_image.shape)
         
         # reszing for faster processing
-        left_image = left_image[170:320, 240:440]
-        right_image = right_image[170:320, 240:440]
-        ground_truth = ground_truth[170:320, 240:440]
+        left_image = left_image[150:300, 105:305] #463, 370
+        right_image = right_image[150:300, 105:305]
+        ground_truth = ground_truth[150:300, 105:305]
 
         cfg.max_measurement = int(np.ceil(np.max(ground_truth)))
 
@@ -279,8 +279,15 @@ def main():
     # Set up configuration
     cfg.min_measurement = 0
     cfg.max_measurement = int(np.ceil(np.max(ground_truth)))
-    cfg.measurement_range = np.arange(cfg.min_measurement, cfg.max_measurement+0.25, 0.25)
-    cfg.belief_discretisation = len(cfg.measurement_range)
+    num_bins = getattr(cfg, 'belief_discretisation', None)
+    if num_bins is None:
+        # default to max_measurement+1 discrete integer levels
+        num_bins = cfg.max_measurement + 1
+    cfg.belief_discretisation = int(num_bins)
+        
+    cfg.measurement_range = np.linspace(cfg.min_measurement, cfg.max_measurement, num=cfg.belief_discretisation) #np.arange(cfg.min_measurement, cfg.max_measurement+cfg.step_size, cfg.step_size)
+
+
     
     # Compute cost and PDF volumes
     with st.spinner("Computing cost volume..."):

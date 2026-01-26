@@ -209,6 +209,8 @@ def kl_divergence_numba(p, q):
 def optimise_gaussian_kl(y_values, x_values):
     """Find Gaussian that minimizes KL divergence from target_belief"""
     sigma_min = 0.01
+    # bin_width = (x_values[-1] - x_values[0]) / len(x_values)
+    # sigma_min = 2*bin_width
     # sigma_max = (x_values[-1] - x_values[0]) / 2.0
     sigma_max = (x_values[-1] - x_values[0]) * 10.0
     num_sigma_steps = 100

@@ -32,14 +32,15 @@ num_iterations = 10
 # min_measurement = -5
 # max_measurement = 5
 min_measurement = 0
-max_measurement = 52
-measurement_range = np.arange(min_measurement, max_measurement, 0.25)
+max_measurement = 63
+step_size = 1
+measurement_range = np.arange(min_measurement, max_measurement+step_size, step_size)
 belief_discretisation = len(measurement_range)
 
 random_seed = 42
 rng = np.random.default_rng(seed=42)
 prior_width = int(max_measurement/2)
-smoothing_width = int(max_measurement)//2
+smoothing_width = int(max_measurement/2)
 
 # Real Data
 left_image = None
