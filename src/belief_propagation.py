@@ -99,7 +99,7 @@ def run_belief_propagation(graph, num_iterations):
     It converts the object-oriented graph into NumPy arrays, calls the fast
     Numba-jitted core function, and then updates the graph objects with the results.
     """
-    print("BP Stage 1: Converting graph to numerical representation...")
+    # print("BP Stage 1: Converting graph to numerical representation...")
 
     num_variables = len(graph.variables)
     num_factors = len(graph.factors)
@@ -163,7 +163,7 @@ def run_belief_propagation(graph, num_iterations):
     var_to_factor_msgs = np.ones((num_variables, max_neighbors, discretisation)) / discretisation
     beliefs = np.ones((num_variables, discretisation)) / discretisation
 
-    print("BP Stage 2: Running BP iterations...")
+    # print("BP Stage 2: Running BP iterations...")
     
     final_beliefs = _run_bp_numba(num_iterations, discretisation,
                                   factor_to_var_msgs, var_to_factor_msgs, beliefs,
@@ -171,7 +171,7 @@ def run_belief_propagation(graph, num_iterations):
                                   priors, prior_indices,
                                   var_neighbor_to_factor_neighbor_idx, factor_to_var_neighbor_idx)
 
-    print("BP Stage 3: Updating graph objects with final beliefs...")
+    # print("BP Stage 3: Updating graph objects with final beliefs...")
     for i, variable in enumerate(graph.variables):
         variable.belief = final_beliefs[i, :]
 

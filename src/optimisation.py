@@ -219,7 +219,7 @@ def optimise_gaussian_kl(y_values, x_values):
     optimal_mean = x_values[np.argmax(y_values)]
     # sigma_search_values = np.linspace(sigma_min, sigma_max, num_sigma_steps)
     sigma_search_values = np.logspace(np.log10(sigma_min), np.log10(sigma_max), num_sigma_steps)
-    min_kl = float('inf')
+    min_kl_nats = float('inf')
     optimal_sigma = None
         
     for sigma_candidate in sigma_search_values:
@@ -229,11 +229,11 @@ def optimise_gaussian_kl(y_values, x_values):
         if np.isnan(current_kl):
             continue
 
-        if current_kl < min_kl:
-            min_kl = current_kl
+        if current_kl < min_kl_nats:
+            min_kl_nats = current_kl
             optimal_sigma = sigma_candidate
 
-    return min_kl, optimal_sigma, optimal_mean
+    return min_kl_nats, optimal_sigma, optimal_mean
 
 def get_kl_from_graph(graph):
     """

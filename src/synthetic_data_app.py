@@ -17,8 +17,8 @@ st.title("Interactive Factor Graph Belief Propagation")
 # Sidebar controls
 st.sidebar.title("Controls")
 st.sidebar.subheader("Factor Graph Configuration")
-cfg.num_variables = st.sidebar.slider("Number of Variables", 2, 200, 100)
-cfg.graph_type = st.sidebar.selectbox("Graph Type",['Grid', 'Tree', 'Loopy'])
+cfg.num_variables   = st.sidebar.slider("Number of Variables", 2, 200, 100)
+cfg.graph_type      = st.sidebar.selectbox("Graph Type",['Grid', 'Tree', 'Loopy'])
 cfg.show_comparison = st.sidebar.checkbox("Show Gaussian best fit", value=True)
 if cfg.graph_type == 'Tree':
     cfg.prior_location = st.sidebar.selectbox("Prior Location", ['root', 'leaf'])
@@ -35,34 +35,25 @@ if cfg.graph_type == 'Loopy':
 # Tree Graph submenu
 if cfg.graph_type == 'Tree':
     # tree_prior_location = st.sidebar.selectbox("Prior Location",['root prior', 'leaf priors'])
-    cfg.bp_pass_direction = st.sidebar.selectbox("Belief Propagation Direction",['Forward pass', 'Backward pass', 'Both'], index=2)
+    cfg.bp_pass_direction     = st.sidebar.selectbox("Belief Propagation Direction",['Forward pass', 'Backward pass', 'Both'], index=2)
     cfg.branching_probability = st.sidebar.slider("Branching probability", 0.0, 1.0, 1.0, step=0.05)
-    cfg.branching_factor = st.sidebar.slider("Branching Factor", 1, 7, 2, step=1)
+    cfg.branching_factor      = st.sidebar.slider("Branching Factor", 1, 7, 2, step=1)
 
 # Grid Graph submenu
 if cfg.graph_type == 'Grid':
     cfg.show_heatmap = st.sidebar.checkbox("Show Heatmap", value=False)
-    cfg.sparse = True
+    cfg.sparse       = True
 
 # Additional variables
 st.sidebar.subheader("Belief Propagation Configuration")
-cfg.num_iterations = st.sidebar.slider("Number of BP Iterations", 1, 100, cfg.num_iterations)
+cfg.num_iterations        = st.sidebar.slider("Number of BP Iterations", 1, 100, cfg.num_iterations)
 cfg.belief_discretisation = st.sidebar.slider("Belief Discretisation", 8, 128, cfg.belief_discretisation, step=4)
-cfg.prior_width = st.sidebar.slider("Prior Width", 4, int(cfg.belief_discretisation), cfg.prior_width, step=4)
-cfg.smoothing_width = st.sidebar.slider("Smoothing Width", 4, int(cfg.belief_discretisation), cfg.smoothing_width, step=4)
-cfg.random_seed = st.sidebar.number_input("Random Seed", value=42, step=1)
+cfg.measurement_range     = np.linspace(cfg.min_measurement, cfg.max_measurement, cfg.belief_discretisation)
+cfg.prior_width           = st.sidebar.slider("Prior Width", 4, int(cfg.belief_discretisation), cfg.prior_width, step=4)
+cfg.smoothing_width       = st.sidebar.slider("Smoothing Width", 4, int(cfg.belief_discretisation), cfg.smoothing_width, step=4)
+cfg.random_seed           = st.sidebar.number_input("Random Seed", value=42, step=1)
 np.random.seed(cfg.random_seed)
-cfg.rng = np.random.default_rng(seed=cfg.random_seed)  # Update RNG with user-defined seed
-
-
-# # Get disparity histogram
-# image_dir = 'data/stereo/teddy/'
-# left_ground_truth_filename = "disp2.png"
-# ground_truth = cv2.imread(image_dir+left_ground_truth_filename, cv2.IMREAD_GRAYSCALE)
-# ground_truth_signed = ground_truth.astype(np.int16)
-# all_diffs = dm.get_histogram_from_truth(ground_truth_signed)
-# hist, bin_edges = np.histogram(all_diffs, bins=2*cfg.belief_discretisation-1)
-# smoothing_kernel = dm.create_random_prior_distribution(cfg.smoothing_width)
+cfg.rng                   = np.random.default_rng(seed=cfg.random_seed)  # Update RNG with user-defined seed
 
 # Build and run
 graph = build_factor_graph(
@@ -76,6 +67,7 @@ graph = build_factor_graph(
     cfg.branching_probability
     # , hist=smoothing_kernel
 )
+
 graph = run_belief_propagation(graph, cfg.num_iterations)
 
 # Plotting

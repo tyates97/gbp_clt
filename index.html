@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GBP CLT Project Page</title>
+    
+    <!-- External Libraries for Interactive Visualizations -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        h1 { margin-bottom: 5px; color: #111; }
+        .authors { font-size: 1.1em; color: #555; margin-bottom: 20px; }
+        .links {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        .btn {
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            background-color: #0076d6;
+            color: white;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        .btn:hover { background-color: #005fae; }
+        .btn.disabled {
+            background-color: #e0e0e0;
+            color: #777;
+            cursor: not-allowed;
+        }
+        section { margin-bottom: 40px; }
+        h2 { border-bottom: 1px solid #eee; padding-bottom: 5px; color: #222; }
+        
+        /* Layout for the interactive demo */
+        .demo-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #eaeaea;
+        }
+        .controls { grid-column: 1 / -1; text-align: center; margin-bottom: 10px; }
+        .control-btn {
+            padding: 6px 12px;
+            margin: 0 5px;
+            cursor: pointer;
+        }
+        .visualizer {
+            background: white;
+            border: 1px solid #ddd;
+            height: 300px;
+            border-radius: 4px;
+        }
+        pre {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Gaussian Belief Propagation and the Central Limit Theorem</h1>
+    <div class="authors">
+        <!-- Replace with actual author order/links -->
+        <a href="#">Your Name</a><sup>1</sup>, 
+        <a href="#">Co-Author</a><sup>1</sup>, 
+        <a href="#">Co-Author</a><sup>1</sup>
+    </div>
+    <div class="affiliation"><sup>1</sup>Imperial College London</div>
+</header>
+
+<div class="links">
+    <!-- Replace '#' with your actual PDF/arXiv URLs when ready -->
+    <a href="#" class="btn">Paper (PDF)</a>
+    <a href="#" class="btn">arXiv</a>
+    <a href="#" class="btn disabled" onclick="return false;">Code (Coming Soon)</a>
+</div>
+
+<section id="abstract">
+    <h2>Abstract</h2>
+    <p><strong>TL;DR:</strong> Provide a hard-hitting, 2-sentence summary of how topology structure influences the empirical CLT convergence rates within distributed Gaussian Belief Propagation.</p>
+    <p>Paste a concise version of your abstract here. Avoid deep walls of text—keep it focused on the core insight that the interactive widget below demonstrates.</p>
+</section>
+
+<section id="interactive-demo">
+    <h2>Interactive Convergence Demo</h2>
+    <p>Select a graph topology to visualize how local factor graph updates drive the joint marginals toward a true Gaussian distribution.</p>
+    
+    <div class="demo-container">
+        <div class="controls">
+            <button class="control-btn" onclick="switchTopology('line')">Line Graph</button>
+            <button class="control-btn" onclick="switchTopology('fully-connected')">Fully Connected</button>
+            <button class="control-btn" onclick="switchTopology('random')">Erdős-Rényi Random</button>
+        </div>
+        <!-- D3.js will inject the graph structure here -->
+        <div id="topology-view" class="visualizer"></div>
+        <!-- Plotly.js will render the distribution convergence here -->
+        <div id="distribution-view" class="visualizer"></div>
+    </div>
+</section>
+
+<section id="key-takeaways">
+    <h2>Key Insights</h2>
+    <ul>
+        <li><strong>Insight 1:</strong> How node degree impacts the speed of information propagation.</li>
+        <li><strong>Insight 2:</strong> The relationship between factor graph loops and empirical convergence stability.</li>
+    </ul>
+</section>
+
+<section id="citation">
+    <h2>Citation</h2>
+    <pre><code>@inproceedings{yourname2026gbpclt,
+  title={Gaussian Belief Propagation and the Central Limit Theorem},
+  author={Your Name and Co-Authors},
+  booktitle={arXiv preprint},
+  year={2026}
+}</code></pre>
+</section>
+
+<script>
+    // Placeholder function for interactive logic
+    function switchTopology(type) {
+        console.log("Switching topology to: " + type);
+        
+        // 1. Use D3.js here to draw nodes and edges in the #topology-view div
+        document.getElementById('topology-view').innerText = "Graph Topology: " + type;
+        
+        // 2. Use Plotly.js here to update the dynamic Gaussian curves in the #distribution-view div
+        // Example dynamic plot boilerplate:
+        var trace = {
+            x: [-3, -2, -1, 0, 1, 2, 3],
+            y: [0.01, 0.05, 0.24, 0.4, 0.24, 0.05, 0.01], // Replace with your simulated convergence data
+            type: 'scatter',
+            mode: 'lines+markers',
+            name: 'Empirical Marginal'
+        };
+        var layout = { margin: { t: 20, r: 20, b: 30, l: 40 } };
+        Plotly.newPlot('distribution-view', [trace], layout);
+    }
+
+    // Initialize with a default view on load
+    window.onload = function() {
+        switchTopology('line');
+    };
+</script>
+
+</body>
+</html>

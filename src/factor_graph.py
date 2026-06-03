@@ -76,7 +76,7 @@ class FactorGraph:
     
         #TODO: you shouldn't need belief_discretisation here
     def add_variables(self, num_variables, belief_discretisation):
-        print("Adding variables to graph...")
+        # print("Adding variables to graph...")
         # Add variable nodes
         for i in range(num_variables):
             self.add_variable(f'X{i + 1}', belief_discretisation)
@@ -91,7 +91,7 @@ class FactorGraph:
                 self.add_factor([variable], random_prior_function, factor_type='prior')
 
     def add_priors(self, num_priors, measurement_range, prior_location, prior_distribution=None):
-        print("Adding prior factors to graph...")
+        # print("Adding prior factors to graph...")
         # if it's a tree and you want priors on the leaf nodes
         if (self.is_tree and prior_location == 'leaf'):
             self.add_leaf_priors(measurement_range, prior_distribution=prior_distribution)
@@ -296,7 +296,13 @@ class FactorGraph:
             blocked=False
             
             # Create a default smoothing function for each factor
-            pairwise_function = dm.create_smoothing_factor_distribution(discretisation, kernel=kernel)
+            # pairwise_function = dm.create_smoothing_factor_distribution(discretisation, kernel=kernel)
+            if kernel is None:
+                base = cfg.rng.random(cfg.smoothing_width)
+                base = dm.normalise(base)
+                pairwise_function = dm.create_smoothing_factor_distribution(discretisation, kernel=base)
+            else:
+                pairwise_function = dm.create_smoothing_factor_distribution(discretisation, kernel=kernel)
 
             # Work out whether this connection is horizontal or vertical and check the correct mask
             row_left = left_index // grid_cols
@@ -360,7 +366,7 @@ class FactorGraph:
 
 #TODO: make the number of arguments being passed here more efficient
 def build_factor_graph(num_variables, num_priors, num_loops, graph_type, measurement_range, prior_location, branching_factor=2, branching_probability=1.0, kernel=None, prior_distribution=None):
-    print("Building factor graph...")
+    # print("Building factor graph...")
     # Create a factor graph
     graph = FactorGraph()
     belief_discretisation = len(measurement_range)
